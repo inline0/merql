@@ -1,8 +1,8 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/inline0/merql/main/docs/public/logo-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/inline0/merql/main/docs/public/logo-light.svg">
-    <img alt="Merql" src="https://raw.githubusercontent.com/inline0/merql/main/docs/public/logo-light.svg" height="56">
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/public/logo-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="./docs/public/logo-light.svg">
+    <img alt="Merql" src="./docs/public/logo-light.svg" height="56">
   </picture>
 </p>
 
