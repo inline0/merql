@@ -37,7 +37,8 @@ final class Applier
         }
 
         $fkDeps = $this->driver->readForeignKeys($this->pdo);
-        $statements = SqlGenerator::generate($result, $base, $fkDeps, $this->driver);
+        $effectiveBase = $base ?? $result->baseSnapshot();
+        $statements = SqlGenerator::generate($result, $effectiveBase, $fkDeps, $this->driver);
         $totalAffected = 0;
         $errors = [];
 

@@ -124,8 +124,7 @@ final class SqliteDriver implements Driver
                 continue;
             }
 
-            // Skip auto-index (PK-backing index).
-            if (str_starts_with($index['name'], 'sqlite_autoindex_')) {
+            if (($index['origin'] ?? null) === 'pk') {
                 continue;
             }
 

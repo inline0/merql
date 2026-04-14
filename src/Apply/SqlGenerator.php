@@ -27,6 +27,7 @@ final class SqlGenerator
         array $fkDependencies = [],
         ?Driver $driver = null,
     ): array {
+        $base ??= $result->baseSnapshot();
         $q = self::quoter($driver);
         $statements = [];
 

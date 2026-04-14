@@ -54,7 +54,12 @@ final class ConflictResolver
             }
         }
 
-        return new MergeResult($operations, []);
+        return new MergeResult(
+            $operations,
+            [],
+            $result->baseSnapshot(),
+            $result->schemaMismatches(),
+        );
     }
 
     /**

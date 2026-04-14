@@ -140,6 +140,16 @@ final class ConflictResolverTest extends TestCase
         $this->assertCount(1, $deletes);
     }
 
+    #[Test]
+    public function resolved_result_preserves_base_snapshot_metadata(): void
+    {
+        $result = $this->buildUpdateConflict();
+
+        $resolved = ConflictResolver::resolve($result, ConflictPolicy::TheirsWins);
+
+        $this->assertSame($result->baseSnapshot(), $resolved->baseSnapshot());
+    }
+
     private function buildUpdateConflict(): \Merql\Merge\MergeResult
     {
         $base = Snapshotter::fromData('base', [

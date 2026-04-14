@@ -277,15 +277,40 @@ final class SqliteIntegrationTest extends TestCase
             CREATE TABLE users (
                 id INTEGER PRIMARY KEY,
                 email TEXT,
-                username TEXT
+                username TEXT UNIQUE
             )
         ');
         $this->pdo->exec('CREATE UNIQUE INDEX idx_email ON users(email)');
 
         $schema = $this->driver->readSchema($this->pdo, 'users');
 
-        $this->assertCount(1, $schema->uniqueKeys);
-        $this->assertSame(['email'], $schema->uniqueKeys[0]);
+        $this->assertCount(2, $schema->uniqueKeys);
+        $this->assertContains(['email'], $schema->uniqueKeys);
+        $this->assertContains(['username'], $schema->uniqueKeys);
+    }
+
+    #[Test]
+    public function natural_key_tables_use_unique_constraint_for_row_identity(): void
+    {
+        $this->pdo->exec('
+            CREATE TABLE users (
+                email TEXT UNIQUE,
+                name TEXT
+            )
+        ');
+        $this->pdo->exec("INSERT INTO users VALUES ('a@example.com', 'Alice')");
+
+        $snapshotter = new Snapshotter($this->pdo, $this->driver);
+        $base = $snapshotter->capture('base');
+
+        $this->pdo->exec("UPDATE users SET name = 'Alicia' WHERE email = 'a@example.com'");
+        $current = $snapshotter->capture('current');
+
+        $changeset = (new Differ())->diff($base, $current);
+
+        $this->assertCount(0, $changeset->inserts());
+        $this->assertCount(1, $changeset->updates());
+        $this->assertCount(0, $changeset->deletes());
     }
 
     #[Test]

@@ -91,6 +91,39 @@ final class SqlGeneratorTest extends TestCase
     }
 
     #[Test]
+    public function uses_embedded_base_snapshot_when_explicit_base_missing(): void
+    {
+        $schema = new TableSchema(
+            'meta',
+            ['post_id' => 'int', 'key' => 'varchar(255)', 'val' => 'text'],
+            ['post_id', 'key'],
+        );
+        $base = Snapshotter::fromData('base', [
+            'meta' => new TableSnapshotData($schema, [
+                ['post_id' => '1', 'key' => 'color', 'val' => 'red'],
+            ], ['post_id', 'key']),
+        ]);
+
+        $result = new MergeResult([
+            new MergeOperation(
+                MergeOperation::TYPE_DELETE,
+                'meta',
+                "1\x1Fcolor",
+                [],
+            ),
+        ], [], $base);
+
+        $stmts = SqlGenerator::generate($result);
+
+        $this->assertCount(1, $stmts);
+        $this->assertSame(
+            'DELETE FROM `meta` WHERE `post_id` = ? AND `key` = ?',
+            $stmts[0]['sql'],
+        );
+        $this->assertSame(['1', 'color'], $stmts[0]['params']);
+    }
+
+    #[Test]
     public function orders_inserts_before_updates_before_deletes(): void
     {
         $result = new MergeResult([

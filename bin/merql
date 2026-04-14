@@ -18,8 +18,6 @@ if ($command === null) {
     echo "  snapshot <name>              Capture current database state\n";
     echo "  diff <base> <current>        Show changeset between two snapshots\n";
     echo "  merge <base> <ours> <theirs> Three-way merge\n";
-    echo "  apply <merge-result>         Apply a merge result\n";
-    echo "  conflicts <merge-result>     List unresolved conflicts\n";
     exit(0);
 }
 

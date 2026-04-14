@@ -33,8 +33,6 @@ composer analyse                         # PHPStan static analysis
 ./bin/merql diff <base> <current>        # Show changeset between two snapshots
 ./bin/merql merge <base> <ours> <theirs> # Three-way merge
 ./bin/merql merge --dry-run ...          # Preview without applying
-./bin/merql apply <merge-result>         # Apply a merge result
-./bin/merql conflicts <merge-result>     # List unresolved conflicts
 ```
 
 ## Non-Negotiable Testing Rule
@@ -294,7 +292,7 @@ Merql::init(PDO $pdo);                                       // Initialize with 
 Merql::snapshot(string $name, array $tables = []);            // Capture current state
 Merql::diff(string $base, string $current): Changeset;       // Compute changeset
 Merql::merge(string $base, string $ours, string $theirs): MergeResult;
-Merql::apply(MergeResult $result): ApplyResult;              // Execute merge
+Merql::apply(MergeResult $result): ApplyResult;              // Execute merge using merge metadata
 Merql::reset();                                              // Reset singletons (testing)
 ```
 

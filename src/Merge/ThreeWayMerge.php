@@ -269,7 +269,7 @@ final class ThreeWayMerge
             );
         }
 
-        return new MergeResult($operations, $conflicts);
+        return new MergeResult($operations, $conflicts, $base, $this->schemaMismatches);
     }
 
     /**
