@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Merql\Merge;
 
+use Merql\CellMerge\CellMergeConfig;
 use Merql\Diff\Changeset;
 use Merql\Diff\Differ;
 use Merql\Diff\RowDelete;
@@ -23,6 +24,11 @@ final class ThreeWayMerge
 {
     /** @var list<SchemaException> */
     private array $schemaMismatches = [];
+
+    public function __construct(
+        private readonly ?CellMergeConfig $cellMergeConfig = null,
+    ) {
+    }
 
     public function merge(Snapshot $base, Snapshot $ours, Snapshot $theirs): MergeResult
     {
@@ -132,12 +138,17 @@ final class ThreeWayMerge
                 $oursRow = $ours->getTable($update->table)?->getRow($update->rowKey) ?? [];
                 $theirsRow = $theirs->getTable($update->table)?->getRow($update->rowKey) ?? [];
 
+                // Get column types for cell merger lookup.
+                $columnTypes = $base->getTable($update->table)?->schema->columns ?? [];
+
                 $result = ColumnMerge::merge(
                     $update->table,
                     $update->rowKey,
                     $baseRow,
                     $oursRow,
                     $theirsRow,
+                    $this->cellMergeConfig,
+                    $columnTypes,
                 );
 
                 if ($result['conflicts'] !== []) {
