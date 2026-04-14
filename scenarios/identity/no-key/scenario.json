@@ -1,0 +1,11 @@
+{
+    "name": "no-key",
+    "category": "identity",
+    "description": "Table without primary key uses all columns as identity",
+    "tables": ["test_tags"],
+    "expectations": {
+        "conflicts": 0,
+        "operations": 2,
+        "is_clean": true
+    }
+}

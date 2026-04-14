@@ -1,0 +1,17 @@
+{
+    "name": "auto-increment",
+    "category": "identity",
+    "description": "Both branches insert with same auto-increment ID but different content, detected as PK collision",
+    "tables": ["test_users"],
+    "expectations": {
+        "conflicts": 1,
+        "operations": 0,
+        "is_clean": false,
+        "conflict_details": [
+            {
+                "table": "test_users",
+                "type": "insert_insert"
+            }
+        ]
+    }
+}

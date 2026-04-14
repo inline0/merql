@@ -1,0 +1,12 @@
+{
+    "name": "schema-mismatch",
+    "category": "edge",
+    "description": "Column added between snapshots is detected",
+    "tables": ["test_posts"],
+    "expectations": {
+        "conflicts": 0,
+        "operations": 1,
+        "is_clean": true,
+        "schema_mismatches": 1
+    }
+}

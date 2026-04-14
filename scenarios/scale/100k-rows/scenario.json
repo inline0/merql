@@ -1,0 +1,11 @@
+{
+    "name": "100k-rows",
+    "category": "scale",
+    "description": "100000-row table with a single update in theirs",
+    "tables": ["test_items"],
+    "expectations": {
+        "conflicts": 0,
+        "operations": 1,
+        "is_clean": true
+    }
+}

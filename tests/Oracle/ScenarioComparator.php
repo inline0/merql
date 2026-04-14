@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Merql\Tests\Oracle;
 
+use Merql\Exceptions\SchemaException;
 use Merql\Merge\MergeResult;
 
 /**
@@ -15,10 +16,14 @@ final class ScenarioComparator
      * Compare merge result against scenario expectations.
      *
      * @param array<string, mixed> $config Scenario configuration.
+     * @param list<SchemaException> $schemaMismatches
      * @return array{pass: bool, failures: list<string>}
      */
-    public static function compare(MergeResult $result, array $config): array
-    {
+    public static function compare(
+        MergeResult $result,
+        array $config,
+        array $schemaMismatches = [],
+    ): array {
         $failures = [];
         $expectations = $config['expectations'] ?? [];
 
@@ -70,6 +75,14 @@ final class ScenarioComparator
                     $failures[] = "Conflict {$i}: expected type '{$detail['type']}',"
                         . " got '{$conflict->type()}'";
                 }
+            }
+        }
+
+        if (isset($expectations['schema_mismatches'])) {
+            $expected = (int) $expectations['schema_mismatches'];
+            $actual = count($schemaMismatches);
+            if ($actual !== $expected) {
+                $failures[] = "Expected {$expected} schema mismatches, got {$actual}";
             }
         }
 

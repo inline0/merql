@@ -30,7 +30,8 @@ final class Applier
             throw ConflictException::unresolved($result->conflictCount());
         }
 
-        $statements = SqlGenerator::generate($result, $base);
+        $fkDeps = ForeignKeyResolver::readDependencies($this->pdo);
+        $statements = SqlGenerator::generate($result, $base, $fkDeps);
         $totalAffected = 0;
         $errors = [];
 

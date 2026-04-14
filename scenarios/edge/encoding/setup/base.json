@@ -1,0 +1,15 @@
+{
+    "tables": {
+        "test_content": {
+            "columns": {
+                "id": "int",
+                "title": "varchar(255)",
+                "body": "text"
+            },
+            "primaryKey": ["id"],
+            "rows": [
+                {"id": 1, "title": "Hello", "body": "Plain text"}
+            ]
+        }
+    }
+}

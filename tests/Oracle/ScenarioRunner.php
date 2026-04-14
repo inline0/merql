@@ -17,17 +17,26 @@ final class ScenarioRunner
      */
     public static function run(array $scenario): array
     {
-        $result = OracleCapture::compute($scenario);
-        $comparison = ScenarioComparator::compare(
-            $result['mergeResult'],
-            $scenario['config'],
-        );
+        try {
+            $result = OracleCapture::compute($scenario);
+            $comparison = ScenarioComparator::compare(
+                $result['mergeResult'],
+                $scenario['config'],
+                $result['schemaMismatches'],
+            );
 
-        return [
-            'name' => $scenario['name'],
-            'pass' => $comparison['pass'],
-            'failures' => $comparison['failures'],
-        ];
+            return [
+                'name' => $scenario['name'],
+                'pass' => $comparison['pass'],
+                'failures' => $comparison['failures'],
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'name' => $scenario['name'],
+                'pass' => false,
+                'failures' => [$e->getMessage()],
+            ];
+        }
     }
 
     /**

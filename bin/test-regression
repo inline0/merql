@@ -3,6 +3,8 @@
 
 declare(strict_types=1);
 
+ini_set('memory_limit', '512M');
+
 require_once __DIR__ . '/../vendor/autoload.php';
 
 use Merql\Tests\Oracle\ScenarioRepository;
@@ -13,7 +15,16 @@ $category = $opts['category'] ?? null;
 $fast = isset($opts['fast']);
 
 $repo = new ScenarioRepository();
-$scenarios = $category !== null ? $repo->byCategory($category) : $repo->all();
+
+if ($category !== null) {
+    $categories = is_array($category) ? $category : [$category];
+    $scenarios = [];
+    foreach ($categories as $cat) {
+        array_push($scenarios, ...$repo->byCategory($cat));
+    }
+} else {
+    $scenarios = $repo->all();
+}
 
 if ($scenarios === []) {
     echo "No scenarios found" . ($category ? " for category '{$category}'" : "") . "\n";

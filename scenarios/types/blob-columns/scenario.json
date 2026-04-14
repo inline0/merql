@@ -1,0 +1,11 @@
+{
+    "name": "blob-columns",
+    "category": "types",
+    "description": "Binary data handled correctly",
+    "tables": ["test_files"],
+    "expectations": {
+        "conflicts": 0,
+        "operations": 1,
+        "is_clean": true
+    }
+}

@@ -6,6 +6,7 @@ namespace Merql\Tests\Oracle;
 
 use Merql\Diff\Changeset;
 use Merql\Diff\Differ;
+use Merql\Exceptions\SchemaException;
 use Merql\Merge\MergeResult;
 use Merql\Merge\ThreeWayMerge;
 use Merql\Schema\TableSchema;
@@ -29,6 +30,7 @@ final class OracleCapture
      *     oursChangeset: Changeset,
      *     theirsChangeset: Changeset,
      *     mergeResult: MergeResult,
+     *     schemaMismatches: list<SchemaException>,
      *     base: Snapshot,
      *     ours: Snapshot,
      *     theirs: Snapshot,
@@ -53,6 +55,7 @@ final class OracleCapture
             'oursChangeset' => $oursChangeset,
             'theirsChangeset' => $theirsChangeset,
             'mergeResult' => $mergeResult,
+            'schemaMismatches' => $merge->schemaMismatches(),
             'base' => $base,
             'ours' => $ours,
             'theirs' => $theirs,
@@ -80,7 +83,8 @@ final class OracleCapture
                 $tableData['uniqueKeys'] ?? [],
             );
 
-            $identityColumns = $tableData['primaryKey'] ?? array_keys($tableData['columns'] ?? []);
+            $pk = $tableData['primaryKey'] ?? [];
+            $identityColumns = $pk !== [] ? $pk : array_keys($tableData['columns'] ?? []);
 
             $tables[$tableName] = new TableSnapshotData(
                 $schema,

@@ -1,0 +1,16 @@
+{
+    "tables": {
+        "test_users": {
+            "columns": {
+                "id": "int",
+                "email": "varchar(255)",
+                "name": "varchar(255)"
+            },
+            "primaryKey": ["id"],
+            "uniqueKeys": [["email"]],
+            "rows": [
+                {"id": "1", "email": "alice@test.com", "name": "Alice"}
+            ]
+        }
+    }
+}

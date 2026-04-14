@@ -16,13 +16,17 @@ final class SqlGenerator
     /**
      * Generate SQL statements for all operations.
      *
+     * @param array<string, list<string>> $fkDependencies FK dependency map (child to parents).
      * @return list<array{sql: string, params: list<mixed>}>
      */
-    public static function generate(MergeResult $result, ?Snapshot $base = null): array
-    {
+    public static function generate(
+        MergeResult $result,
+        ?Snapshot $base = null,
+        array $fkDependencies = [],
+    ): array {
         $statements = [];
 
-        // Order: inserts first, then updates, then deletes.
+        // Separate by operation type.
         $inserts = [];
         $updates = [];
         $deletes = [];
@@ -36,6 +40,21 @@ final class SqlGenerator
             };
         }
 
+        // Sort by FK dependency order if available.
+        if ($fkDependencies !== []) {
+            $allTables = array_unique(array_map(fn($op) => $op->table, $result->operations()));
+            $tableOrder = ForeignKeyResolver::topologicalSort($fkDependencies, array_values($allTables));
+
+            // Inserts/updates: parent tables first.
+            $inserts = ForeignKeyResolver::sortOperations($tableOrder, $inserts);
+            $updates = ForeignKeyResolver::sortOperations($tableOrder, $updates);
+
+            // Deletes: child tables first (reverse order).
+            $reverseOrder = array_reverse($tableOrder);
+            $deletes = ForeignKeyResolver::sortOperations($reverseOrder, $deletes);
+        }
+
+        // Order: inserts first, then updates, then deletes.
         foreach ($inserts as $op) {
             $statements[] = self::generateInsert($op);
         }

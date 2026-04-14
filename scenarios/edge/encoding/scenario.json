@@ -1,0 +1,11 @@
+{
+    "name": "encoding",
+    "category": "edge",
+    "description": "UTF-8 and emoji preserved through merge",
+    "tables": ["test_content"],
+    "expectations": {
+        "conflicts": 0,
+        "operations": 1,
+        "is_clean": true
+    }
+}

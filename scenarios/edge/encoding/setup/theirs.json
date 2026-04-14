@@ -1,0 +1,15 @@
+{
+    "tables": {
+        "test_content": {
+            "columns": {
+                "id": "int",
+                "title": "varchar(255)",
+                "body": "text"
+            },
+            "primaryKey": ["id"],
+            "rows": [
+                {"id": 1, "title": "H\u00e9llo W\u00f6rld \ud83c\udf0d", "body": "\u00dcn\u00efc\u00f6d\u00eb content with \u00e9mojis \ud83c\udf89\ud83d\ude80"}
+            ]
+        }
+    }
+}

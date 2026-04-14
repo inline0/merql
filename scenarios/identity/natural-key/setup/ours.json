@@ -1,0 +1,16 @@
+{
+    "tables": {
+        "test_settings": {
+            "columns": {
+                "id": "int",
+                "key": "varchar(255)",
+                "value": "text"
+            },
+            "primaryKey": ["id"],
+            "uniqueKeys": [["key"]],
+            "rows": [
+                {"id": "1", "key": "theme", "value": "light"}
+            ]
+        }
+    }
+}

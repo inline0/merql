@@ -1,0 +1,16 @@
+{
+    "tables": {
+        "test_events": {
+            "columns": {
+                "id": "int",
+                "name": "varchar(255)",
+                "event_date": "date",
+                "created_at": "datetime"
+            },
+            "primaryKey": ["id"],
+            "rows": [
+                {"id": 1, "name": "Launch", "event_date": "2024-01-01", "created_at": "2024-01-01 00:00:00"}
+            ]
+        }
+    }
+}

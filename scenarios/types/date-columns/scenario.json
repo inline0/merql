@@ -1,0 +1,11 @@
+{
+    "name": "date-columns",
+    "category": "types",
+    "description": "DATE and DATETIME columns updated by theirs, ours unchanged. Clean merge accepts the update.",
+    "tables": ["test_events"],
+    "expectations": {
+        "conflicts": 0,
+        "operations": 1,
+        "is_clean": true
+    }
+}

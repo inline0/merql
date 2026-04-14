@@ -1,0 +1,14 @@
+{
+    "tables": {
+        "test_documents": {
+            "columns": {
+                "id": "int",
+                "content": "longtext"
+            },
+            "primaryKey": ["id"],
+            "rows": [
+                {"id": 1, "content": "Short original content."}
+            ]
+        }
+    }
+}

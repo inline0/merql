@@ -1,0 +1,14 @@
+{
+    "tables": {
+        "test_config": {
+            "columns": {
+                "id": "int",
+                "data": "json"
+            },
+            "primaryKey": ["id"],
+            "rows": [
+                {"id": 1, "data": "{\"theme\":\"dark\",\"lang\":\"en\"}"}
+            ]
+        }
+    }
+}

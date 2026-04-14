@@ -15,11 +15,15 @@ final class DryRun
     /**
      * Generate human-readable SQL statements.
      *
+     * @param array<string, list<string>> $fkDependencies FK dependency map.
      * @return list<string>
      */
-    public static function generate(MergeResult $result, ?Snapshot $base = null): array
-    {
-        $statements = SqlGenerator::generate($result, $base);
+    public static function generate(
+        MergeResult $result,
+        ?Snapshot $base = null,
+        array $fkDependencies = [],
+    ): array {
+        $statements = SqlGenerator::generate($result, $base, $fkDependencies);
         $output = [];
 
         foreach ($statements as $stmt) {

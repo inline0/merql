@@ -1,0 +1,15 @@
+{
+    "tables": {
+        "test_files": {
+            "columns": {
+                "id": "int",
+                "name": "varchar(255)",
+                "content": "blob"
+            },
+            "primaryKey": ["id"],
+            "rows": [
+                {"id": 1, "name": "icon.png", "content": "base64data_original"}
+            ]
+        }
+    }
+}

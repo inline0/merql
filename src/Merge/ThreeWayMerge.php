@@ -9,6 +9,8 @@ use Merql\Diff\Differ;
 use Merql\Diff\RowDelete;
 use Merql\Diff\RowInsert;
 use Merql\Diff\RowUpdate;
+use Merql\Exceptions\SchemaException;
+use Merql\Schema\SchemaValidator;
 use Merql\Snapshot\Snapshot;
 
 /**
@@ -19,13 +21,28 @@ use Merql\Snapshot\Snapshot;
  */
 final class ThreeWayMerge
 {
+    /** @var list<SchemaException> */
+    private array $schemaMismatches = [];
+
     public function merge(Snapshot $base, Snapshot $ours, Snapshot $theirs): MergeResult
     {
+        $this->schemaMismatches = SchemaValidator::validate($base, $ours, $theirs);
+
         $differ = new Differ();
         $oursChangeset = $differ->diff($base, $ours);
         $theirsChangeset = $differ->diff($base, $theirs);
 
         return $this->mergeChangesets($base, $ours, $theirs, $oursChangeset, $theirsChangeset);
+    }
+
+    /**
+     * Schema mismatches detected during last merge.
+     *
+     * @return list<SchemaException>
+     */
+    public function schemaMismatches(): array
+    {
+        return $this->schemaMismatches;
     }
 
     private function mergeChangesets(

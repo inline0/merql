@@ -1,0 +1,11 @@
+{
+    "name": "wide-table",
+    "category": "scale",
+    "description": "Table with 50+ columns",
+    "tables": ["test_wide"],
+    "expectations": {
+        "conflicts": 0,
+        "operations": 1,
+        "is_clean": true
+    }
+}

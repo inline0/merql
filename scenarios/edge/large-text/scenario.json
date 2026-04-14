@@ -1,0 +1,11 @@
+{
+    "name": "large-text",
+    "category": "edge",
+    "description": "Very large TEXT values handled correctly",
+    "tables": ["test_documents"],
+    "expectations": {
+        "conflicts": 0,
+        "operations": 1,
+        "is_clean": true
+    }
+}

@@ -1,0 +1,11 @@
+{
+    "name": "json-columns",
+    "category": "types",
+    "description": "JSON columns merged as opaque strings",
+    "tables": ["test_config"],
+    "expectations": {
+        "conflicts": 0,
+        "operations": 1,
+        "is_clean": true
+    }
+}

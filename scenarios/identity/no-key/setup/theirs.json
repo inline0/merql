@@ -1,0 +1,16 @@
+{
+    "tables": {
+        "test_tags": {
+            "columns": {
+                "tag": "varchar(255)",
+                "count": "int"
+            },
+            "primaryKey": [],
+            "uniqueKeys": [],
+            "rows": [
+                {"tag": "php", "count": "15"},
+                {"tag": "mysql", "count": "5"}
+            ]
+        }
+    }
+}
