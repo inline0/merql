@@ -7,4 +7,3 @@ composer.lock
 .merql/
 docs/node_modules/
 docs/.next/
-docs/.source/
