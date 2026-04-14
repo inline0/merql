@@ -15,29 +15,79 @@ final class ConflictResolver
             return $result;
         }
 
-        $operations = $result->operations();
-        $resolvedConflicts = [];
+        $useOurs = $policy === ConflictPolicy::OursWins;
 
+        // For update_update conflicts, we need to patch existing operations.
+        // Build a map of column-level patches per table+rowKey.
+        $patches = self::buildColumnPatches($result->conflicts(), $useOurs);
+
+        // Apply patches to existing operations.
+        $operations = [];
+        foreach ($result->operations() as $op) {
+            $patchKey = $op->table . "\x00" . $op->rowKey;
+            if (isset($patches[$patchKey])) {
+                $values = $op->values;
+                foreach ($patches[$patchKey] as $col => $val) {
+                    $values[$col] = $val;
+                }
+                $operations[] = new MergeOperation(
+                    $op->type,
+                    $op->table,
+                    $op->rowKey,
+                    $values,
+                    $op->source,
+                );
+            } else {
+                $operations[] = $op;
+            }
+        }
+
+        // Process non-column-level conflicts (insert_insert, update_delete, etc.).
         foreach ($result->conflicts() as $conflict) {
-            $resolved = self::resolveConflict($conflict, $policy);
+            if ($conflict->type() === 'update_update') {
+                continue;
+            }
+
+            $resolved = self::resolveStructuralConflict($conflict, $useOurs);
             if ($resolved !== null) {
                 $operations[] = $resolved;
             }
         }
 
-        return new MergeResult($operations, $resolvedConflicts);
+        return new MergeResult($operations, []);
     }
 
-    private static function resolveConflict(
+    /**
+     * Build column value patches from update_update conflicts.
+     *
+     * @param list<Conflict> $conflicts
+     * @return array<string, array<string, mixed>>
+     */
+    private static function buildColumnPatches(array $conflicts, bool $useOurs): array
+    {
+        $patches = [];
+        foreach ($conflicts as $conflict) {
+            if ($conflict->type() !== 'update_update' || $conflict->column() === null) {
+                continue;
+            }
+
+            $key = $conflict->table() . "\x00" . $conflict->rowKey();
+            $patches[$key][$conflict->column()] = $useOurs
+                ? $conflict->oursValue()
+                : $conflict->theirsValue();
+        }
+
+        return $patches;
+    }
+
+    private static function resolveStructuralConflict(
         Conflict $conflict,
-        ConflictPolicy $policy,
+        bool $useOurs,
     ): ?MergeOperation {
-        $useOurs = $policy === ConflictPolicy::OursWins;
         $table = $conflict->table();
         $rowKey = $conflict->rowKey();
 
         return match ($conflict->type()) {
-            'update_update' => null,
             'update_delete' => $useOurs
                 ? self::op(MergeOperation::TYPE_UPDATE, $table, $rowKey, (array) $conflict->oursValue(), 'ours')
                 : self::op(MergeOperation::TYPE_DELETE, $table, $rowKey, [], 'theirs'),

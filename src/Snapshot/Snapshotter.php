@@ -84,15 +84,17 @@ final class Snapshotter
         $rows = [];
 
         foreach ($allRows as $row) {
-            if ($columnFilter !== null) {
-                $row = $columnFilter->applyToRow($row);
-            }
-
             if ($rowFilter !== null && !$rowFilter->shouldInclude($tableName, $row)) {
                 continue;
             }
 
+            // Build row key from unfiltered row to preserve identity columns.
             $key = self::buildRowKey($row, $identityColumns);
+
+            if ($columnFilter !== null) {
+                $row = $columnFilter->applyToRow($row);
+            }
+
             $fingerprints[$key] = RowFingerprint::compute($row);
             $rows[$key] = $row;
         }
@@ -123,10 +125,30 @@ final class Snapshotter
         $parts = [];
         foreach ($identityColumns as $col) {
             $val = $row[$col] ?? '';
-            $parts[] = (string) $val;
+            // Escape separator and escape char to prevent collisions.
+            $parts[] = str_replace(
+                ['%', "\x1F"],
+                ['%25', '%1F'],
+                (string) $val,
+            );
         }
 
         return implode("\x1F", $parts);
+    }
+
+    /**
+     * Decode a row key back into its component parts.
+     *
+     * @return list<string>
+     */
+    public static function decodeRowKey(string $key): array
+    {
+        $parts = explode("\x1F", $key);
+
+        return array_map(
+            fn(string $part) => str_replace(['%1F', '%25'], ["\x1F", '%'], $part),
+            $parts,
+        );
     }
 
     /**

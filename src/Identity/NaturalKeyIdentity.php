@@ -19,12 +19,7 @@ final readonly class NaturalKeyIdentity implements RowIdentity
 
     public function key(array $row): string
     {
-        $parts = [];
-        foreach ($this->uniqueColumns as $col) {
-            $parts[] = (string) ($row[$col] ?? '');
-        }
-
-        return implode("\x1F", $parts);
+        return \Merql\Snapshot\Snapshotter::buildRowKey($row, $this->uniqueColumns);
     }
 
     public function columns(): array

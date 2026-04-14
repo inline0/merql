@@ -19,12 +19,7 @@ final readonly class PrimaryKeyIdentity implements RowIdentity
 
     public function key(array $row): string
     {
-        $parts = [];
-        foreach ($this->pkColumns as $col) {
-            $parts[] = (string) ($row[$col] ?? '');
-        }
-
-        return implode("\x1F", $parts);
+        return \Merql\Snapshot\Snapshotter::buildRowKey($row, $this->pkColumns);
     }
 
     public function columns(): array

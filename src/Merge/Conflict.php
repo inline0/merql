@@ -64,7 +64,7 @@ final readonly class Conflict
      */
     public function primaryKey(array $identityColumns): array
     {
-        $parts = explode("\x1F", $this->rowKey);
+        $parts = \Merql\Snapshot\Snapshotter::decodeRowKey($this->rowKey);
         $result = [];
         foreach ($identityColumns as $i => $col) {
             $result[$col] = $parts[$i] ?? '';

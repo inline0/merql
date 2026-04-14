@@ -118,7 +118,7 @@ final class SqlGenerator
         }
 
         $whereClauses = [];
-        $keyParts = explode("\x1F", $op->rowKey);
+        $keyParts = \Merql\Snapshot\Snapshotter::decodeRowKey($op->rowKey);
         foreach ($identityColumns as $i => $col) {
             $whereClauses[] = "`{$col}` = ?";
             $params[] = $keyParts[$i] ?? '';
@@ -143,7 +143,7 @@ final class SqlGenerator
 
         $whereClauses = [];
         $params = [];
-        $keyParts = explode("\x1F", $op->rowKey);
+        $keyParts = \Merql\Snapshot\Snapshotter::decodeRowKey($op->rowKey);
 
         foreach ($identityColumns as $i => $col) {
             $whereClauses[] = "`{$col}` = ?";

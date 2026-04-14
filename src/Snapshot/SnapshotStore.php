@@ -26,6 +26,7 @@ final class SnapshotStore
 
     public static function save(Snapshot $snapshot): void
     {
+        self::validateName($snapshot->name);
         $dir = self::$directory;
         if (!is_dir($dir)) {
             mkdir($dir, 0755, true);
@@ -38,6 +39,7 @@ final class SnapshotStore
 
     public static function load(string $name): Snapshot
     {
+        self::validateName($name);
         $path = self::$directory . '/' . $name . '.json';
         if (!file_exists($path)) {
             throw SnapshotException::notFound($name, $path);
@@ -55,14 +57,30 @@ final class SnapshotStore
 
     public static function exists(string $name): bool
     {
+        self::validateName($name);
+
         return file_exists(self::$directory . '/' . $name . '.json');
     }
 
     public static function delete(string $name): void
     {
+        self::validateName($name);
         $path = self::$directory . '/' . $name . '.json';
         if (file_exists($path)) {
             unlink($path);
+        }
+    }
+
+    /**
+     * Validate snapshot name contains only safe characters.
+     */
+    private static function validateName(string $name): void
+    {
+        if (!preg_match('/^[a-zA-Z0-9_\-]+$/', $name)) {
+            throw new SnapshotException(
+                "Invalid snapshot name '{$name}': "
+                . 'only alphanumeric, dash, and underscore allowed',
+            );
         }
     }
 
