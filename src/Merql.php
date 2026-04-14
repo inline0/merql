@@ -73,6 +73,20 @@ final class Merql
     }
 
     /**
+     * Two-way merge: apply changes from another snapshot onto base.
+     * Equivalent to merge(base, base, changes) - ours is unchanged.
+     */
+    public static function patch(string $base, string $changes): MergeResult
+    {
+        $baseSnapshot = SnapshotStore::load($base);
+        $changesSnapshot = SnapshotStore::load($changes);
+
+        $merge = new ThreeWayMerge();
+
+        return $merge->merge($baseSnapshot, $baseSnapshot, $changesSnapshot);
+    }
+
+    /**
      * Apply a merge result to the database.
      */
     public static function apply(MergeResult $result): ApplyResult

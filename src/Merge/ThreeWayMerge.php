@@ -36,6 +36,14 @@ final class ThreeWayMerge
     }
 
     /**
+     * Two-way merge: apply changes onto base. Always clean (no conflicts possible).
+     */
+    public function patch(Snapshot $base, Snapshot $changes): MergeResult
+    {
+        return $this->merge($base, $base, $changes);
+    }
+
+    /**
      * Schema mismatches detected during last merge.
      *
      * @return list<SchemaException>

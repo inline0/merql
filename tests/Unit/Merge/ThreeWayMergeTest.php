@@ -376,4 +376,49 @@ final class ThreeWayMergeTest extends TestCase
         $this->assertNotEmpty($merge->schemaMismatches());
         $this->assertStringContainsString('subtitle', $merge->schemaMismatches()[0]->getMessage());
     }
+
+    #[Test]
+    public function patch_applies_changes_cleanly(): void
+    {
+        $base = Snapshotter::fromData('base', [
+            'posts' => new TableSnapshotData($this->schema, [
+                ['id' => '1', 'title' => 'Hello', 'content' => 'Body', 'status' => 'draft'],
+            ], ['id']),
+        ]);
+
+        $changes = Snapshotter::fromData('changes', [
+            'posts' => new TableSnapshotData($this->schema, [
+                ['id' => '1', 'title' => 'Updated', 'content' => 'New Body', 'status' => 'publish'],
+                ['id' => '2', 'title' => 'New Post', 'content' => 'Content', 'status' => 'draft'],
+            ], ['id']),
+        ]);
+
+        $result = $this->merge->patch($base, $changes);
+
+        $this->assertTrue($result->isClean());
+        $this->assertSame(2, $result->operationCount());
+    }
+
+    #[Test]
+    public function patch_never_conflicts(): void
+    {
+        $base = Snapshotter::fromData('base', [
+            'posts' => new TableSnapshotData($this->schema, [
+                ['id' => '1', 'title' => 'Hello', 'content' => 'Body', 'status' => 'draft'],
+            ], ['id']),
+        ]);
+
+        $changes = Snapshotter::fromData('changes', [
+            'posts' => new TableSnapshotData($this->schema, [
+                ['id' => '1', 'title' => 'Different', 'content' => 'Changed', 'status' => 'publish'],
+            ], ['id']),
+        ]);
+
+        $result = $this->merge->patch($base, $changes);
+
+        // Two-way: only one side changed, so no conflicts possible.
+        $this->assertTrue($result->isClean());
+        $this->assertSame(1, $result->operationCount());
+        $this->assertSame('Different', $result->operations()[0]->values['title']);
+    }
 }
