@@ -276,4 +276,104 @@ final class ThreeWayMergeTest extends TestCase
         $this->assertTrue($result->isClean());
         $this->assertSame(2, $result->operationCount());
     }
+
+    #[Test]
+    public function ours_update_only(): void
+    {
+        $base = Snapshotter::fromData('base', [
+            'posts' => new TableSnapshotData($this->schema, [
+                ['id' => '1', 'title' => 'Hello', 'content' => 'Body', 'status' => 'draft'],
+            ], ['id']),
+        ]);
+
+        $ours = Snapshotter::fromData('ours', [
+            'posts' => new TableSnapshotData($this->schema, [
+                ['id' => '1', 'title' => 'Updated by us', 'content' => 'Body', 'status' => 'draft'],
+            ], ['id']),
+        ]);
+
+        $theirs = Snapshotter::fromData('theirs', [
+            'posts' => new TableSnapshotData($this->schema, [
+                ['id' => '1', 'title' => 'Hello', 'content' => 'Body', 'status' => 'draft'],
+            ], ['id']),
+        ]);
+
+        $result = $this->merge->merge($base, $ours, $theirs);
+
+        $this->assertTrue($result->isClean());
+        $this->assertSame(1, $result->operationCount());
+        $this->assertSame(MergeOperation::TYPE_UPDATE, $result->operations()[0]->type);
+        $this->assertSame('ours', $result->operations()[0]->source);
+        $this->assertSame('Updated by us', $result->operations()[0]->values['title']);
+    }
+
+    #[Test]
+    public function ours_delete_only(): void
+    {
+        $base = Snapshotter::fromData('base', [
+            'posts' => new TableSnapshotData($this->schema, [
+                ['id' => '1', 'title' => 'Hello', 'content' => 'Body', 'status' => 'draft'],
+                ['id' => '2', 'title' => 'Bye', 'content' => 'Body2', 'status' => 'publish'],
+            ], ['id']),
+        ]);
+
+        $ours = Snapshotter::fromData('ours', [
+            'posts' => new TableSnapshotData($this->schema, [
+                ['id' => '1', 'title' => 'Hello', 'content' => 'Body', 'status' => 'draft'],
+            ], ['id']),
+        ]);
+
+        $theirs = Snapshotter::fromData('theirs', [
+            'posts' => new TableSnapshotData($this->schema, [
+                ['id' => '1', 'title' => 'Hello', 'content' => 'Body', 'status' => 'draft'],
+                ['id' => '2', 'title' => 'Bye', 'content' => 'Body2', 'status' => 'publish'],
+            ], ['id']),
+        ]);
+
+        $result = $this->merge->merge($base, $ours, $theirs);
+
+        $this->assertTrue($result->isClean());
+        $this->assertSame(1, $result->operationCount());
+        $this->assertSame(MergeOperation::TYPE_DELETE, $result->operations()[0]->type);
+        $this->assertSame('ours', $result->operations()[0]->source);
+    }
+
+    #[Test]
+    public function schema_mismatches_detected(): void
+    {
+        $baseSchema = new TableSchema('posts', [
+            'id' => 'int',
+            'title' => 'varchar(255)',
+        ], ['id']);
+
+        $theirsSchema = new TableSchema('posts', [
+            'id' => 'int',
+            'title' => 'varchar(255)',
+            'subtitle' => 'varchar(255)',
+        ], ['id']);
+
+        $base = Snapshotter::fromData('base', [
+            'posts' => new TableSnapshotData($baseSchema, [
+                ['id' => '1', 'title' => 'Hello'],
+            ], ['id']),
+        ]);
+
+        $ours = Snapshotter::fromData('ours', [
+            'posts' => new TableSnapshotData($baseSchema, [
+                ['id' => '1', 'title' => 'Hello'],
+            ], ['id']),
+        ]);
+
+        $theirs = Snapshotter::fromData('theirs', [
+            'posts' => new TableSnapshotData($theirsSchema, [
+                ['id' => '1', 'title' => 'Updated', 'subtitle' => 'New'],
+            ], ['id']),
+        ]);
+
+        $merge = new ThreeWayMerge();
+        $result = $merge->merge($base, $ours, $theirs);
+
+        $this->assertNotEmpty($merge->schemaMismatches());
+        $this->assertStringContainsString('subtitle', $merge->schemaMismatches()[0]->getMessage());
+    }
 }

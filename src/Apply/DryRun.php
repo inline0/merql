@@ -38,7 +38,11 @@ final class DryRun
                     return 'NULL';
                 }
 
-                return "'" . addslashes((string) $val) . "'";
+                return "'" . str_replace(
+                    ['\\', "'", "\0", "\n", "\r"],
+                    ['\\\\', "''", '\\0', '\\n', '\\r'],
+                    (string) $val,
+                ) . "'";
             }, $sql);
             $output[] = (string) $replaced;
         }

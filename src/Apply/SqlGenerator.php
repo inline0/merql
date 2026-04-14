@@ -60,7 +60,10 @@ final class SqlGenerator
         }
 
         foreach ($updates as $op) {
-            $statements[] = self::generateUpdate($op, $base);
+            $stmt = self::generateUpdate($op, $base);
+            if ($stmt !== null) {
+                $statements[] = $stmt;
+            }
         }
 
         foreach ($deletes as $op) {
@@ -91,7 +94,10 @@ final class SqlGenerator
     /**
      * @return array{sql: string, params: list<mixed>}
      */
-    private static function generateUpdate(MergeOperation $op, ?Snapshot $base): array
+    /**
+     * @return array{sql: string, params: list<mixed>}|null Null if no columns to update.
+     */
+    private static function generateUpdate(MergeOperation $op, ?Snapshot $base): ?array
     {
         $identityColumns = self::getIdentityColumns($op, $base);
 
@@ -104,6 +110,11 @@ final class SqlGenerator
             }
             $setClauses[] = "`{$col}` = ?";
             $params[] = $val;
+        }
+
+        // No non-identity columns to update: skip this operation.
+        if ($setClauses === []) {
+            return null;
         }
 
         $whereClauses = [];

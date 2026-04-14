@@ -62,4 +62,57 @@ final class DryRunTest extends TestCase
 
         $this->assertCount(3, $sql);
     }
+
+    #[Test]
+    public function escapes_single_quotes(): void
+    {
+        $result = new MergeResult([
+            new MergeOperation(
+                MergeOperation::TYPE_INSERT,
+                'posts',
+                '1',
+                ['id' => '1', 'title' => "O'Reilly"],
+            ),
+        ]);
+
+        $sql = DryRun::generate($result);
+
+        $this->assertStringContainsString("'O''Reilly'", $sql[0]);
+        $this->assertStringNotContainsString("O'R", $sql[0]);
+    }
+
+    #[Test]
+    public function escapes_newlines(): void
+    {
+        $result = new MergeResult([
+            new MergeOperation(
+                MergeOperation::TYPE_INSERT,
+                'posts',
+                '1',
+                ['id' => '1', 'content' => "line1\nline2"],
+            ),
+        ]);
+
+        $sql = DryRun::generate($result);
+
+        $this->assertStringContainsString('\\n', $sql[0]);
+        $this->assertStringNotContainsString("\n", $sql[0]);
+    }
+
+    #[Test]
+    public function escapes_backslashes(): void
+    {
+        $result = new MergeResult([
+            new MergeOperation(
+                MergeOperation::TYPE_INSERT,
+                'posts',
+                '1',
+                ['id' => '1', 'path' => 'C:\\Users\\test'],
+            ),
+        ]);
+
+        $sql = DryRun::generate($result);
+
+        $this->assertStringContainsString('C:\\\\Users\\\\test', $sql[0]);
+    }
 }
