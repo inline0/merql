@@ -58,7 +58,7 @@ A library that:
 5. Generates SQL to apply the merged result
 6. Supports dry-run preview and manual conflict resolution
 
-All without external tools. Direct PDO for database access. Shared connection pattern with queuety and pitmaster.
+All without external tools. Direct PDO for database access.
 
 ## What This Is Not
 
@@ -79,9 +79,9 @@ Not a schema migration tool (use Liquibase/Flyway). Not a replication engine (us
 
 Three states, same as git:
 
-- **Base**: the database when the fork happened (e.g., when a sandbox was created)
-- **Ours**: the database we're merging into (e.g., the live app)
-- **Theirs**: the database we're merging from (e.g., the sandbox with agent changes)
+- **Base**: the database when the fork happened
+- **Ours**: the database we're merging into (may have changed since fork)
+- **Theirs**: the database we're merging from (the changes to apply)
 
 ### Operation detection
 
@@ -188,7 +188,7 @@ merql/
 │   │   ├── ColumnFilter.php             # Ignore specific columns (e.g., updated_at timestamps)
 │   │   └── RowFilter.php               # Ignore specific rows (e.g., transient data)
 │   │
-│   ├── Connection.php                   # PDO connection builder (shared pattern with queuety/pitmaster)
+│   ├── Connection.php                   # PDO connection builder
 │   └── Exceptions/
 │       ├── SnapshotException.php
 │       ├── MergeException.php
@@ -273,13 +273,6 @@ merql/
 │   │   ├── 100k-rows/
 │   │   └── wide-table/                  # Table with 50+ columns
 │   │
-│   ├── wordpress/                       # WordPress-specific scenarios
-│   │   ├── posts-and-meta/              # wp_posts + wp_postmeta linked changes
-│   │   ├── options/                     # wp_options changes
-│   │   ├── terms-and-taxonomy/          # Terms, term_taxonomy, term_relationships
-│   │   ├── users-and-usermeta/          # User changes
-│   │   └── mixed-content/              # Posts + options + terms all changed
-│   │
 │   └── edge/                            # Edge cases
 │       ├── empty-changeset/             # No changes on one or both sides
 │       ├── schema-mismatch/             # Column added/removed between snapshots
@@ -314,11 +307,11 @@ $snapshotter = new Snapshotter($pdo);
 $snapshot = $snapshotter->capture('baseline');
 
 // Capture specific tables
-$snapshot = $snapshotter->capture('baseline', tables: ['wp_posts', 'wp_postmeta', 'wp_options']);
+$snapshot = $snapshotter->capture('baseline', tables: ['posts', 'post_meta', 'settings']);
 
 // Capture with filters
 $snapshot = $snapshotter->capture('baseline', filters: [
-    TableFilter::exclude(['wp_sessions', 'wp_actionscheduler_*']),
+    TableFilter::exclude(['sessions', 'cache_*']),
     ColumnFilter::ignore(['updated_at', 'modified_date']),
 ]);
 
@@ -338,7 +331,7 @@ $changeset->updates();            // RowUpdate[]
 $changeset->deletes();            // RowDelete[]
 $changeset->isEmpty();            // bool
 $changeset->count();              // total operations
-$changeset->forTable('wp_posts'); // operations for one table
+$changeset->forTable('posts');    // operations for one table
 ```
 
 ### ThreeWayMerge
@@ -403,7 +396,7 @@ foreach ($sql as $statement) {
 10. Auto-increment IDs are not stable identifiers across branches. When both sides insert rows, they get different auto-increment IDs. merql must handle this: match by natural key when available, or treat as independent inserts.
 11. JSON columns are merged as opaque strings by default. JSON-aware deep merge (merge object keys independently) is a future enhancement, not a v1 requirement.
 12. PHP 8.2+. Use readonly classes for `Snapshot`, `Changeset`, `RowInsert`, `RowUpdate`, `RowDelete`, `Conflict`, `MergeResult`. Use enums for `ConflictPolicy`. Use match expressions.
-13. The connection pattern matches queuety and pitmaster. Direct PDO, wp-config.php credential parsing when used in WordPress context, no WordPress bootstrap required.
+13. Direct PDO for database access. No framework dependency. Pass a PDO instance or connection config.
 
 ## Oracle Model
 
@@ -494,21 +487,6 @@ For conflict scenarios, the oracle defines exactly which conflicts should be det
 }
 ```
 
-### WordPress scenarios
-
-WordPress scenarios use real WordPress table schemas and test realistic merge situations:
-
-```
-scenarios/wordpress/posts-and-meta/
-├── setup/
-│   ├── schema.sql              # wp_posts + wp_postmeta schema
-│   ├── base.sql                # 10 posts with meta
-│   ├── ours.sql                # App: 2 posts updated, 1 new post
-│   └── theirs.sql              # Sandbox: 3 posts updated, 2 new posts, 1 deleted
-├── oracle/
-│   └── merge-result.json       # Expected: 6 clean operations, 0 conflicts
-```
-
 ### Compliance Report
 
 ```
@@ -547,20 +525,13 @@ Type Scenarios:             6/6 passed
   blob-columns             PASS  (binary data)
   null-handling            PASS  (NULL transitions)
 
-WordPress Scenarios:        5/5 passed
-  posts-and-meta           PASS  (linked table merge)
-  options                  PASS  (option merge)
-  terms-and-taxonomy       PASS  (term relationship merge)
-  users-and-usermeta       PASS  (user merge)
-  mixed-content            PASS  (full WordPress content merge)
-
 Edge Cases:                 4/4 passed
   empty-changeset          PASS  (no-op merge)
   schema-mismatch          PASS  (detected and reported)
   encoding                 PASS  (UTF-8, emoji preserved)
   large-text               PASS  (LONGTEXT values)
 
-Total: 33/33 scenarios passed
+Total: 28/28 scenarios passed
 ```
 
 ## Implementation Order
@@ -607,48 +578,15 @@ Build bottom-up. Each phase unlocks new scenario categories.
 
 **Oracle gate:** `./bin/test-regression --category identity` all green. Auto-increment IDs handled correctly. Natural keys work. Keyless tables don't crash.
 
-### Phase 5: WordPress integration and hardening
+### Phase 5: Hardening
 
-21. WordPress table relationship awareness (posts ↔ postmeta, terms ↔ term_taxonomy)
-22. WordPress-specific filters (skip transients, sessions, caches)
-23. Schema mismatch detection
-24. Large table performance (100k+ rows)
-25. Encoding edge cases (UTF-8, emoji, binary)
+21. Schema mismatch detection
+22. Large table performance (100k+ rows)
+23. Encoding edge cases (UTF-8, emoji, binary)
+24. Linked table awareness (parent ↔ child foreign key relationships)
+25. Table-specific filters (skip transient/cache tables)
 
-**Oracle gate:** `./bin/test-regression --category wordpress --category edge --category scale` all green. Full compliance report clean.
-
-## How Rudel Uses merql
-
-merql is a standalone library. Rudel integrates it for sandbox deployment:
-
-```php
-// Inside Rudel's deploy logic:
-
-// 1. Load the base snapshot (captured when sandbox was created)
-$base = SnapshotStore::load($sandbox->baseSnapshotPath());
-
-// 2. Snapshot the current app state (ours)
-$ours = $snapshotter->capture('deploy-ours', tables: $sandbox->trackedTables());
-
-// 3. Snapshot the current sandbox state (theirs)
-$theirs = $snapshotter->capture('deploy-theirs', tables: $sandbox->trackedTables());
-
-// 4. Three-way merge
-$result = $merge->merge($base, $ours, $theirs);
-
-if (!$result->isClean()) {
-    // Report conflicts, abort deploy
-    foreach ($result->conflicts() as $conflict) {
-        $this->logger->warning("Conflict: {$conflict}");
-    }
-    throw new DeployConflictException($result->conflicts());
-}
-
-// 5. Apply to app database
-$applier->apply($result);
-```
-
-Rudel orchestrates. merql does the merge work. Same relationship as Rudel → Pitmaster for code.
+**Oracle gate:** `./bin/test-regression --category edge --category scale` all green. Full compliance report clean.
 
 ## Comment Policy
 
