@@ -1,0 +1,166 @@
+---
+title: Three-Way Merge
+description: How merql computes changesets from three database states and merges them using git-style rules.
+---
+
+# Three-Way Merge
+
+A three-way merge compares two sets of changes against a common ancestor and combines them into one result. merql applies this algorithm to database rows instead of file lines.
+
+```php
+use Merql\Merge\ThreeWayMerge;
+
+$merge = new ThreeWayMerge();
+$result = $merge->merge($base, $ours, $theirs);
+
+echo $result->operationCount(); // resolved operations
+echo $result->conflictCount();  // unresolved conflicts
+```
+
+## The three states
+
+Every merge requires exactly three snapshots:
+
+- **Base** -- the database state at the point both branches diverged.
+- **Ours** -- the current database state (may have changed since base).
+- **Theirs** -- the incoming changes to merge in.
+
+```
+         Base (snapshot at fork time)
+        /                              \
+   Ours (our changes)                   Theirs (their changes)
+        \                              /
+         --------- MERGE ----------
+                     |
+              Merged result
+              + conflicts (if any)
+```
+
+Without a common base, you cannot distinguish "added" from "unchanged." Two-way comparison sees that side A has a value and side B does not, but cannot determine whether A added it or B deleted it. The base answers that question.
+
+## How changesets are computed
+
+The `Differ` compares each snapshot against the base to produce two changesets. Each changeset contains three kinds of operations:
+
+| Base | Current | Operation |
+|---|---|---|
+| Row exists | Row exists, same fingerprint | No change |
+| Row exists | Row exists, different fingerprint | **UPDATE** (per-column diff) |
+| Row exists | Row missing | **DELETE** |
+| Row missing | Row exists | **INSERT** |
+
+Fingerprints (SHA-256 hashes of normalized row content) provide a fast path. If two fingerprints match, the row is unchanged and no column-level comparison is needed.
+
+```php
+use Merql\Diff\Differ;
+
+$differ = new Differ();
+$oursChangeset = $differ->diff($base, $ours);
+$theirsChangeset = $differ->diff($base, $theirs);
+```
+
+## Merge rules
+
+The two changesets are then merged operation by operation. This table defines the outcome for every combination:
+
+| Ours | Theirs | Result |
+|---|---|---|
+| No change | No change | Keep base |
+| No change | Updated | Accept theirs |
+| Updated | No change | Accept ours |
+| Updated (same value) | Updated (same value) | Accept (both agree) |
+| Updated (different value) | Updated (different value) | **Conflict** |
+| No change | Deleted | Accept delete |
+| Deleted | No change | Accept delete |
+| Deleted | Deleted | Accept delete (both agree) |
+| Updated | Deleted | **Conflict** |
+| Deleted | Updated | **Conflict** |
+| Inserted (ours only) | -- | Accept insert |
+| -- | Inserted (theirs only) | Accept insert |
+| Inserted (same PK) | Inserted (same PK) | **Conflict** |
+
+When both sides update the same row, merql does not immediately declare a conflict. It drops to column-level merge, comparing each column independently. See [Column-Level Merge](/docs/merge/column-level) for details.
+
+## Using the facade
+
+The `Merql` facade operates on named snapshots that have been persisted to disk:
+
+```php
+use Merql\Merql;
+
+Merql::init($pdo);
+
+$base   = Merql::snapshot('base');
+// ... changes happen ...
+$ours   = Merql::snapshot('ours');
+// ... other changes ...
+$theirs = Merql::snapshot('theirs');
+
+$result = Merql::merge('base', 'ours', 'theirs');
+```
+
+## Using the classes directly
+
+For more control, instantiate the components yourself:
+
+```php
+use Merql\Snapshot\Snapshotter;
+use Merql\Merge\ThreeWayMerge;
+
+$snapshotter = new Snapshotter($pdo);
+$base   = $snapshotter->capture('base');
+$ours   = $snapshotter->capture('ours');
+$theirs = $snapshotter->capture('theirs');
+
+$merge = new ThreeWayMerge();
+$result = $merge->merge($base, $ours, $theirs);
+```
+
+## The patch shortcut
+
+When only one side has changes (no concurrent modifications), use `patch()`. This is a two-way merge where ours equals base, so conflicts are impossible:
+
+```php
+$result = $merge->patch($base, $changes);
+// Always clean: ours is identical to base.
+```
+
+Through the facade:
+
+```php
+$result = Merql::patch('base', 'changes');
+```
+
+`patch()` is equivalent to `merge($base, $base, $changes)`. Since ours never diverged from base, every change from theirs is accepted without conflict.
+
+## Schema mismatch detection
+
+If the table structure changed between snapshots (columns added, removed, or retyped), the merge still proceeds but records the mismatches:
+
+```php
+$result = $merge->merge($base, $ours, $theirs);
+
+if ($result->hasSchemaMismatches()) {
+    foreach ($result->schemaMismatches() as $mismatch) {
+        echo $mismatch->getMessage() . "\n";
+    }
+}
+```
+
+merql does not auto-migrate schemas. Schema changes are the caller's responsibility. The merge reports them so you can decide how to proceed.
+
+## The MergeResult
+
+The result object carries everything you need:
+
+```php
+$result->isClean();            // true if no conflicts
+$result->operations();         // list of MergeOperation objects
+$result->conflicts();          // list of Conflict objects
+$result->operationCount();     // number of resolved operations
+$result->conflictCount();      // number of unresolved conflicts
+$result->hasSchemaMismatches(); // true if schemas differ
+$result->baseSnapshot();       // the base snapshot used for the merge
+```
+
+Each `MergeOperation` has a type (`insert`, `update`, or `delete`), a table name, a row key, the column values, and a source (`ours`, `theirs`, or `merged`).

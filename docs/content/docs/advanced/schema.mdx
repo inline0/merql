@@ -1,0 +1,65 @@
+---
+title: Schema Validation
+description: How merql detects and reports schema differences between snapshots.
+---
+
+# Schema Validation
+
+When schemas evolve between snapshots (columns added, removed, or renamed), merql detects and reports these differences. Schema mismatches do not block the merge, but they are surfaced so the caller can decide how to proceed.
+
+## Detection
+
+`SchemaValidator::validate()` compares the column sets of each table across base, ours, and theirs snapshots. It reports:
+
+- Columns added in ours (present in ours but not in base)
+- Columns removed in ours (present in base but not in ours)
+- Columns added in theirs
+- Columns removed in theirs
+
+```php
+use Merql\Merge\ThreeWayMerge;
+
+$merge = new ThreeWayMerge();
+$result = $merge->merge($base, $ours, $theirs);
+
+if ($result->hasSchemaMismatches()) {
+    foreach ($result->schemaMismatches() as $mismatch) {
+        echo $mismatch->getMessage() . "\n";
+        // "Schema mismatch on table 'posts': columns added in theirs: subtitle"
+    }
+}
+```
+
+## What is detected
+
+| Change | Detected | Notes |
+|---|---|---|
+| Column added | Yes | Reported per side (ours/theirs) |
+| Column removed | Yes | Reported per side |
+| Column type changed | No | Types are stored but not compared |
+| Column renamed | No | Appears as add + remove |
+| Primary key changed | No | Identity is fixed at snapshot time |
+
+## Behavior during merge
+
+When a column exists in one snapshot but not another, the merge treats the missing column value as `null`. This means:
+
+- A column added in theirs with a non-null value appears as `null -> value` (accepted as theirs change)
+- A column removed in theirs appears as having `null` for all rows in theirs
+
+The merge proceeds and produces a result. The schema mismatches are informational. The caller should verify that the target database schema matches the merged data before applying.
+
+## Accessing mismatches
+
+Schema mismatches are available on both `ThreeWayMerge` (via `schemaMismatches()`) and on `MergeResult` (via `schemaMismatches()` and `hasSchemaMismatches()`). They are preserved through `ConflictResolver::resolve()`.
+
+```php
+// On the merge result directly
+$result->hasSchemaMismatches(); // bool
+$result->schemaMismatches();    // list<SchemaException>
+
+// Each mismatch is a SchemaException with a descriptive message
+foreach ($result->schemaMismatches() as $e) {
+    // $e->getMessage() includes table name and column details
+}
+```

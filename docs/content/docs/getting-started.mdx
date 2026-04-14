@@ -1,0 +1,193 @@
+---
+title: Getting Started
+description: Install merql, capture your first snapshot, compute a diff, and perform a three-way merge.
+---
+
+# Getting Started
+
+This guide walks through installation, connecting to a database, capturing snapshots, computing diffs, and performing a three-way merge.
+
+## Installation
+
+```bash
+composer require merql/merql
+```
+
+merql requires PHP 8.2+ and `ext-pdo`. No other extensions are needed.
+
+## Connecting to a database
+
+merql works with any PDO-supported database. Built-in drivers are provided for MySQL and SQLite.
+
+```php
+use Merql\Connection;
+
+// SQLite (in-memory or file-based).
+$pdo = Connection::sqlite(':memory:');
+$pdo = Connection::sqlite('/path/to/database.sqlite');
+
+// MySQL.
+$pdo = Connection::mysql('127.0.0.1', 'my_database', 'root', 'password');
+
+// Any PDO DSN.
+$pdo = Connection::fromDsn('pgsql:host=localhost;dbname=mydb', 'user', 'pass');
+```
+
+## Capturing a snapshot
+
+A snapshot records every row of every table (or a subset of tables) as fingerprints and data. Fingerprints enable fast change detection; full row data is available when a diff is needed.
+
+```php
+use Merql\Merql;
+
+Merql::init($pdo);
+
+// Snapshot all tables.
+$snapshot = Merql::snapshot('baseline');
+
+// Snapshot specific tables.
+$snapshot = Merql::snapshot('baseline', ['posts', 'comments', 'users']);
+```
+
+Snapshots are persisted as JSON files in `.merql/snapshots/` by default. You can change this location:
+
+```php
+use Merql\Snapshot\SnapshotStore;
+
+SnapshotStore::setDirectory('/var/data/merql-snapshots');
+```
+
+## Computing a diff
+
+A diff compares two snapshots and returns a changeset of inserts, updates, and deletes.
+
+```php
+$changeset = Merql::diff('baseline', 'current');
+
+echo "Inserts: " . count($changeset->inserts()) . "\n";
+echo "Updates: " . count($changeset->updates()) . "\n";
+echo "Deletes: " . count($changeset->deletes()) . "\n";
+
+// Inspect changes for a single table.
+$postChanges = $changeset->forTable('posts');
+
+// Check per-column diffs on updates.
+foreach ($changeset->updates() as $update) {
+    echo "Row {$update->rowKey} in {$update->table}:\n";
+    foreach ($update->columnDiffs as $diff) {
+        echo "  {$diff->column}: {$diff->oldValue} -> {$diff->newValue}\n";
+    }
+}
+```
+
+## Three-way merge
+
+The core operation. Takes three named snapshots (base, ours, theirs) and merges the two sets of changes.
+
+```php
+$result = Merql::merge('base', 'ours', 'theirs');
+
+echo "Operations: {$result->operationCount()}\n";
+echo "Conflicts:  {$result->conflictCount()}\n";
+echo "Clean:      " . ($result->isClean() ? 'yes' : 'no') . "\n";
+```
+
+### Handling conflicts
+
+When both sides change the same column to different values, merql raises a conflict. You can resolve conflicts automatically or inspect them manually.
+
+```php
+use Merql\Merge\ConflictPolicy;
+use Merql\Merge\ConflictResolver;
+
+if (!$result->isClean()) {
+    // Auto-resolve: one side wins.
+    $resolved = ConflictResolver::resolve($result, ConflictPolicy::TheirsWins);
+
+    // Or inspect each conflict.
+    foreach ($result->conflicts() as $conflict) {
+        echo "Conflict on {$conflict->table()} row {$conflict->rowKey()}:\n";
+        echo "  Type:   {$conflict->type()}\n";
+        echo "  Column: {$conflict->column()}\n";
+        echo "  Ours:   " . var_export($conflict->oursValue(), true) . "\n";
+        echo "  Theirs: " . var_export($conflict->theirsValue(), true) . "\n";
+    }
+}
+```
+
+## Applying the merge
+
+Once you have a clean merge result (no unresolved conflicts), apply it to the database.
+
+```php
+$applied = Merql::apply($result);
+
+echo "Rows affected: {$applied->rowsAffected()}\n";
+
+if ($applied->hasErrors()) {
+    foreach ($applied->errors() as $error) {
+        echo "Error: {$error}\n";
+    }
+}
+```
+
+The applier wraps all operations in a transaction. If any statement fails, the entire merge is rolled back.
+
+## Dry run
+
+Preview the SQL that a merge would generate without executing it.
+
+```php
+use Merql\Apply\DryRun;
+
+$statements = DryRun::generate($result);
+
+foreach ($statements as $sql) {
+    echo "{$sql};\n";
+}
+```
+
+## Two-way patch
+
+When you only have a base and a set of changes (no concurrent "ours" modifications), use `patch()`. This is equivalent to a merge where ours is unchanged from base.
+
+```php
+$result = Merql::patch('base', 'changes');
+// Always clean: no concurrent edits means no conflicts.
+Merql::apply($result);
+```
+
+## Using the CLI
+
+All of these operations are also available from the command line. See the [CLI Reference](/docs/cli) for full details.
+
+```bash
+export MERQL_DB_DSN="sqlite:mydb.sqlite"
+
+./bin/merql snapshot base
+./bin/merql snapshot current
+./bin/merql diff base current
+./bin/merql merge base ours theirs --dry-run
+```
+
+## Filtering tables and columns
+
+Snapshots can exclude tables (like cache or session tables) and ignore volatile columns (like `updated_at` timestamps).
+
+```php
+use Merql\Filter\TableFilter;
+use Merql\Filter\ColumnFilter;
+use Merql\Snapshot\Snapshotter;
+
+$snapshotter = new Snapshotter($pdo);
+
+$snapshot = $snapshotter->capture('baseline', filters: [
+    TableFilter::exclude(['sessions', 'cache_*']),
+    ColumnFilter::ignore(['updated_at', 'modified_date']),
+]);
+```
+
+## Next steps
+
+- [CLI Reference](/docs/cli) for the full command-line interface.
+- [PHP API Reference](/docs/api) for detailed documentation of every class and method.

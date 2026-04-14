@@ -1,0 +1,96 @@
+---
+title: Dry Run Preview
+description: Preview the SQL a merge would generate without executing it.
+---
+
+# Dry Run Preview
+
+`DryRun::generate()` produces human-readable SQL statements with values interpolated inline. Use it to review what a merge would do before applying it to the database.
+
+```php
+use Merql\Apply\DryRun;
+
+$statements = DryRun::generate($result);
+
+foreach ($statements as $sql) {
+    echo "{$sql};\n";
+}
+```
+
+## Example output
+
+```sql
+INSERT INTO `posts` (`id`, `title`, `content`, `status`) VALUES ('42', 'New Post', 'Body text', 'draft');
+UPDATE `posts` SET `title` = 'Updated Title', `status` = 'publish' WHERE `id` = '42';
+DELETE FROM `posts` WHERE `id` = '99';
+```
+
+## Value formatting
+
+All values are wrapped in single quotes. Special characters are escaped for safe display:
+
+| Character | Escaped as |
+|---|---|
+| `\` (backslash) | `\\` |
+| `'` (single quote) | `''` |
+| `\0` (null byte) | `\0` |
+| `\n` (newline) | `\n` |
+| `\r` (carriage return) | `\r` |
+
+NULL values are rendered as the unquoted literal `NULL`:
+
+```sql
+UPDATE `posts` SET `subtitle` = NULL WHERE `id` = '42';
+```
+
+## Parameters
+
+`DryRun::generate()` accepts the same parameters as `SqlGenerator::generate()`:
+
+```php
+$statements = DryRun::generate(
+    $result,
+    base: $baseSnapshot,
+    fkDependencies: ['comments' => ['posts']],
+    driver: new SqliteDriver(),
+);
+```
+
+| Parameter | Type | Description |
+|---|---|---|
+| `$result` | `MergeResult` | The merge result to preview. |
+| `$base` | `?Snapshot` | Base snapshot for identity columns. Falls back to `$result->baseSnapshot()`. |
+| `$fkDependencies` | `array` | Foreign key dependency map for ordering. |
+| `$driver` | `?Driver` | Database driver for identifier quoting. |
+
+## Dry run vs SqlGenerator
+
+`DryRun` wraps `SqlGenerator`. The difference:
+
+- `SqlGenerator::generate()` returns `['sql' => '...', 'params' => [...]]` arrays intended for `PDO::prepare()` and `execute()`.
+- `DryRun::generate()` returns flat strings with values inlined, intended for humans to read.
+
+Do not execute dry run output as SQL. It is formatted for display, not for safe execution. For executing merges, use `Applier` or `SqlGenerator` directly with prepared statements.
+
+## Using with the facade
+
+Through the facade, capture a merge result and preview it:
+
+```php
+use Merql\Merql;
+use Merql\Apply\DryRun;
+
+$result = Merql::merge('base', 'ours', 'theirs');
+
+$statements = DryRun::generate($result);
+
+foreach ($statements as $sql) {
+    echo "{$sql};\n";
+}
+```
+
+Or from the CLI with the `--dry-run` flag:
+
+```bash
+./bin/merql merge base ours theirs --dry-run
+```

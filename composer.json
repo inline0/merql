@@ -1,16 +1,39 @@
 {
-    "name": "inline0/merql",
-    "description": "Pure PHP three-way database merge with column-level conflict resolution",
+    "name": "merql/merql",
+    "description": "Pure PHP three-way database merge with column-level conflict resolution. Git-style merge semantics applied to MySQL and SQLite tables.",
     "type": "library",
     "license": "MIT",
+    "authors": [
+        {
+            "name": "inline0",
+            "homepage": "https://github.com/inline0"
+        }
+    ],
+    "homepage": "https://github.com/inline0/merql",
+    "support": {
+        "issues": "https://github.com/inline0/merql/issues",
+        "source": "https://github.com/inline0/merql"
+    },
+    "keywords": [
+        "php",
+        "database",
+        "merge",
+        "three-way-merge",
+        "diff",
+        "conflict-resolution",
+        "mysql",
+        "sqlite",
+        "snapshot",
+        "pdo"
+    ],
     "require": {
         "php": "^8.2",
         "ext-pdo": "*",
         "pitmaster/pitmaster": "^0.2.4"
     },
     "require-dev": {
-        "phpunit/phpunit": "^11.0",
         "phpstan/phpstan": "^2.0",
+        "phpunit/phpunit": "^11.0",
         "squizlabs/php_codesniffer": "^3.11"
     },
     "autoload": {
@@ -23,15 +46,26 @@
             "Merql\\Tests\\": "tests/"
         }
     },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    },
+    "bin": [
+        "bin/merql"
+    ],
     "scripts": {
+        "test": "phpunit",
         "test:unit": "phpunit --testsuite=unit",
         "test:integration": "phpunit --testsuite=integration",
-        "test": "phpunit",
-        "cs": "phpcs",
+        "test:oracle": "php bin/test-regression",
+        "analyse": "phpstan analyse --memory-limit=512M",
+        "cs": "phpcs --warning-severity=0",
         "cs:fix": "phpcbf",
-        "analyse": "phpstan analyse"
-    },
-    "config": {
-        "sort-packages": true
+        "verify": [
+            "@analyse",
+            "@cs",
+            "@test",
+            "@test:oracle"
+        ]
     }
 }

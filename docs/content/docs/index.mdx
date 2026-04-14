@@ -1,0 +1,90 @@
+---
+title: merql
+description: Pure PHP three-way database merge with column-level conflict resolution. Git-style merge semantics applied to relational data.
+---
+
+# merql
+
+merql is a pure PHP library that performs three-way merges on database state. It snapshots tables, computes changesets between snapshots, merges two sets of changes against a common base, and detects conflicts at the column level. The same algorithm git uses for source files, applied to rows and columns instead of lines.
+
+No extensions beyond PDO. No external tools. Supports MySQL and SQLite through a pluggable driver system.
+
+## Quick example
+
+```php
+use Merql\Connection;
+use Merql\Merql;
+
+$pdo = Connection::sqlite(':memory:');
+Merql::init($pdo);
+
+// Capture states at three points in time.
+$base   = Merql::snapshot('base');
+// ... make changes on "ours" branch ...
+$ours   = Merql::snapshot('ours');
+// ... make changes on "theirs" branch ...
+$theirs = Merql::snapshot('theirs');
+
+// Merge.
+$result = Merql::merge('base', 'ours', 'theirs');
+
+if ($result->isClean()) {
+    $applied = Merql::apply($result);
+    echo "Rows affected: {$applied->rowsAffected()}";
+} else {
+    echo "Conflicts: {$result->conflictCount()}";
+}
+```
+
+Or from the CLI:
+
+```bash
+export MERQL_DB_DSN="sqlite:/path/to/db.sqlite"
+
+./bin/merql snapshot base
+# ... apply changes ...
+./bin/merql snapshot ours
+# ... apply other changes ...
+./bin/merql snapshot theirs
+
+./bin/merql merge base ours theirs --dry-run
+```
+
+## Why merql
+
+Most database tools that compare state work at the row level: if any column in a row differs between two versions, the entire row is flagged as a conflict. This produces false conflicts when two people edit different columns of the same row.
+
+merql merges at the column level. If one side changed the `title` and the other changed the `status`, those changes merge cleanly without conflict. A conflict is only raised when both sides change the same column to different values.
+
+For TEXT and JSON columns, merql goes one level deeper with cell-level merge. Two edits to different lines of a text column, or different keys of a JSON column, can merge cleanly using the same three-way algorithm.
+
+## The merge model
+
+```
+         Base (snapshot at fork time)
+        /                              \
+   Ours (our current state)             Theirs (incoming changes)
+        \                              /
+         --------- MERGE ----------
+                     |
+              Merged result
+              + conflicts (if any)
+```
+
+Three states, same as git. Base is the common ancestor. Ours is the current database. Theirs is the set of changes to merge in. Without a common base, you cannot distinguish "added" from "unchanged."
+
+## Requirements
+
+- PHP 8.2 or later.
+- `ext-pdo` (built-in with every PHP installation).
+- MySQL or SQLite database.
+
+## What it is not
+
+merql is not a schema migration tool. It does not replicate databases or synchronize them in real time. It solves one specific problem: given three database states, produce a merged fourth state with conflicts identified.
+
+## Documentation
+
+- [Getting Started](/docs/getting-started) -- installation, first snapshot, first merge.
+- [CLI Reference](/docs/cli) -- full reference for the `bin/merql` command.
+- [PHP API Reference](/docs/api) -- complete API documentation for all classes.

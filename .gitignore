@@ -1,4 +1,10 @@
 /vendor/
 /.phpunit.cache/
 /.phpstan.cache/
+/build/
 composer.lock
+.DS_Store
+.merql/
+docs/node_modules/
+docs/.next/
+docs/.source/

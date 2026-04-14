@@ -1,0 +1,46 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Publish Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer
+
+      - run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Verify autoloader
+        run: |
+          php -r "require 'vendor/autoload.php'; class_exists('Merql\\Merql', true) || exit(1); echo 'Autoloader OK';"
+
+      - name: Create release archive
+        run: |
+          mkdir -p dist
+          rsync -a --exclude='.git' --exclude='.github' --exclude='.claude' \
+            --exclude='tests' --exclude='scenarios' \
+            --exclude='docs' \
+            --exclude='CLAUDE.md' --exclude='CHANGELOG.md' \
+            --exclude='phpunit.xml*' --exclude='phpcs.xml' --exclude='phpstan.neon*' \
+            --exclude='.phpunit*' --exclude='.phpstan*' \
+            --exclude='bin/oracle' --exclude='bin/actual' --exclude='bin/compare' \
+            --exclude='bin/test-scenario' --exclude='bin/test-regression' \
+            --exclude='bin/verify-compliance' --exclude='bin/verify-all' \
+            . dist/merql/
+          cd dist && zip -r ../merql.zip merql/
+
+      - name: Upload release asset
+        run: gh release upload "${{ github.event.release.tag_name }}" merql.zip --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

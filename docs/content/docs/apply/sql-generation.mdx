@@ -1,0 +1,137 @@
+---
+title: SQL Generation
+description: How merql generates parameterized SQL from merge results, with foreign key ordering and NULL handling.
+---
+
+# SQL Generation
+
+`SqlGenerator` converts a `MergeResult` into parameterized SQL statements. All values are bound as parameters, never interpolated into the SQL string.
+
+```php
+use Merql\Apply\SqlGenerator;
+
+$statements = SqlGenerator::generate($result);
+
+foreach ($statements as $stmt) {
+    echo $stmt['sql'] . "\n";
+    // INSERT INTO `posts` (`id`, `title`, `status`) VALUES (?, ?, ?)
+    print_r($stmt['params']);
+    // [42, 'New Title', 'publish']
+}
+```
+
+## Statement format
+
+Each statement is an associative array with two keys:
+
+```php
+[
+    'sql'    => 'INSERT INTO `posts` (`id`, `title`) VALUES (?, ?)',
+    'params' => [42, 'New Title'],
+]
+```
+
+Identifiers (table and column names) are quoted using the database driver's quoting style. MySQL uses backticks, SQLite uses double quotes. When no driver is provided, backtick quoting is used as the default.
+
+## Operation ordering
+
+Operations are grouped by type and executed in this order:
+
+1. **INSERTs** first -- new rows must exist before updates can reference them.
+2. **UPDATEs** second.
+3. **DELETEs** last -- rows must be de-referenced before deletion.
+
+```php
+$statements = SqlGenerator::generate($result);
+// All INSERTs, then all UPDATEs, then all DELETEs.
+```
+
+## Foreign key ordering
+
+When foreign key dependencies are provided, operations within each group are sorted topologically. Parent tables are processed before child tables for inserts and updates. Child tables are processed before parent tables for deletes.
+
+```php
+$fkDependencies = [
+    'comments' => ['posts'],        // comments references posts
+    'post_meta' => ['posts'],       // post_meta references posts
+];
+
+$statements = SqlGenerator::generate($result, fkDependencies: $fkDependencies);
+// INSERTs: posts first, then comments and post_meta
+// DELETEs: comments and post_meta first, then posts
+```
+
+The `ForeignKeyResolver` performs a topological sort on the dependency graph. Circular dependencies are detected and broken to prevent infinite loops.
+
+### Automatic FK detection
+
+The `Applier` reads foreign key relationships from the database automatically:
+
+```php
+use Merql\Apply\Applier;
+
+$applier = new Applier($pdo);
+$applied = $applier->apply($result);
+// FK dependencies are read from the database via the driver.
+```
+
+## Generated SQL examples
+
+### INSERT
+
+```sql
+INSERT INTO `posts` (`id`, `title`, `content`, `status`) VALUES (?, ?, ?, ?)
+-- params: [42, 'New Post', 'Body text', 'draft']
+```
+
+All columns from the operation's values are included.
+
+### UPDATE
+
+```sql
+UPDATE `posts` SET `title` = ?, `status` = ? WHERE `id` = ?
+-- params: ['New Title', 'publish', 42]
+```
+
+Identity columns (primary key) are excluded from the SET clause and used in the WHERE clause. The WHERE clause values come from decoding the row key.
+
+### DELETE
+
+```sql
+DELETE FROM `posts` WHERE `id` = ?
+-- params: [42]
+```
+
+Only identity columns appear in the WHERE clause.
+
+## NULL handling
+
+NULL values are passed as PHP `null` in the params array. PDO handles the binding:
+
+```php
+$statements = SqlGenerator::generate($result);
+// params might contain: [42, null, 'draft']
+// PDO binds null as SQL NULL
+```
+
+In dry run output, NULL values are rendered as the literal string `NULL` without quotes.
+
+## Identity column detection
+
+`SqlGenerator` determines which columns form the row identity by looking at the base snapshot's `TableSnapshot::identityColumns`. These columns are used for WHERE clauses on UPDATE and DELETE statements and excluded from SET clauses on UPDATEs.
+
+If no base snapshot is available, the first column in the values array is used as a fallback. If the values array is empty, `id` is assumed.
+
+## Passing a driver
+
+To control identifier quoting, pass a `Driver` instance:
+
+```php
+use Merql\Driver\SqliteDriver;
+
+$statements = SqlGenerator::generate(
+    $result,
+    driver: new SqliteDriver(),
+);
+// Uses double-quote quoting: "posts", "title"
+```

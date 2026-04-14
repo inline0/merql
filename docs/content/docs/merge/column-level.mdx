@@ -1,0 +1,118 @@
+---
+title: Column-Level Merge
+description: How merql merges rows at the column level to avoid false conflicts when different columns are edited.
+---
+
+# Column-Level Merge
+
+Column-level merge is merql's primary advantage over naive row-level comparison. When both sides modify the same row, merql compares each column independently rather than flagging the entire row as a conflict.
+
+## The problem with row-level merge
+
+Consider a `posts` table where two people edit the same row:
+
+```
+Base:    post #42  { title: "Hello",     content: "Body",    status: "draft"   }
+Ours:    post #42  { title: "Hello",     content: "Body v2", status: "draft"   }
+Theirs:  post #42  { title: "New Title", content: "Body",    status: "publish" }
+```
+
+A row-level merge sees that both sides changed the row and declares a conflict. But the changes do not overlap at all. Ours edited `content`, theirs edited `title` and `status`.
+
+## How column-level merge resolves it
+
+merql applies the same three-way merge rules to each column individually:
+
+```
+title:   base="Hello", ours="Hello",  theirs="New Title"  -> accept theirs
+content: base="Body",  ours="Body v2", theirs="Body"      -> accept ours
+status:  base="draft", ours="draft",  theirs="publish"    -> accept theirs
+```
+
+Result: `{ title: "New Title", content: "Body v2", status: "publish" }`. Clean merge, no conflict.
+
+## How it works
+
+When `ThreeWayMerge` detects that both sides updated the same row, it delegates to `ColumnMerge::merge()`:
+
+```php
+use Merql\Merge\ColumnMerge;
+
+$result = ColumnMerge::merge(
+    table: 'posts',
+    rowKey: '42',
+    base: ['title' => 'Hello', 'content' => 'Body', 'status' => 'draft'],
+    ours: ['title' => 'Hello', 'content' => 'Body v2', 'status' => 'draft'],
+    theirs: ['title' => 'New Title', 'content' => 'Body', 'status' => 'publish'],
+);
+
+// $result['values']    -> merged column values
+// $result['conflicts'] -> list of Conflict objects (empty if clean)
+```
+
+For each column, the same rules apply:
+
+| Base | Ours | Theirs | Result |
+|---|---|---|---|
+| A | A | A | Keep base (no change) |
+| A | A | B | Accept theirs |
+| A | B | A | Accept ours |
+| A | B | B | Accept (both agree) |
+| A | B | C | **Conflict** (different values) |
+
+## When conflicts still happen
+
+A column-level conflict occurs when both sides changed the same column to different values:
+
+```
+Base:    post #42  { title: "Hello" }
+Ours:    post #42  { title: "Welcome" }
+Theirs:  post #42  { title: "Greetings" }
+```
+
+Both changed `title`, to different values. This is a genuine conflict that requires resolution.
+
+```php
+$result = ColumnMerge::merge(
+    'posts', '42',
+    ['title' => 'Hello'],
+    ['title' => 'Welcome'],
+    ['title' => 'Greetings'],
+);
+
+// $result['conflicts'] contains one Conflict:
+//   table: "posts", column: "title"
+//   oursValue: "Welcome", theirsValue: "Greetings", baseValue: "Hello"
+```
+
+## Partial conflicts
+
+A single row can have both clean merges and conflicts. If one column merges cleanly but another conflicts, the `MergeOperation` for the row contains the merged values for clean columns and the ours value (by default) for conflicted columns. The conflict is still reported separately.
+
+```
+Base:    { title: "Hello", content: "Body",    status: "draft" }
+Ours:    { title: "Welcome", content: "Body v2", status: "draft" }
+Theirs:  { title: "Greetings", content: "Body",    status: "publish" }
+```
+
+Here `title` conflicts (both changed it differently), `content` merges clean (only ours changed), and `status` merges clean (only theirs changed). The operation carries:
+
+```php
+// values: { title: "Welcome", content: "Body v2", status: "publish" }
+// One conflict on the "title" column.
+```
+
+## Value comparison
+
+Column values are compared as strings after casting. `NULL` is a distinct value:
+
+- `NULL` to `NULL` = no change.
+- `NULL` to `"hello"` = update.
+- `"hello"` to `NULL` = update.
+- `"1"` to `1` = no change (both cast to the string `"1"`).
+
+This matches how PDO returns values from the database: all values come back as strings (or NULL).
+
+## Cell-level merge
+
+When column-level merge still results in a conflict (both sides changed the same column to different values), merql can go one level deeper with [cell-level merge](/docs/merge/cell-level). This applies to TEXT columns (line-by-line diff) and JSON columns (key-by-key diff), resolving cases where both sides edited different parts of the same column value.

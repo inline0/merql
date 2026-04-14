@@ -1,0 +1,165 @@
+---
+title: Filters
+description: Exclude tables, ignore columns, and filter rows during snapshot capture.
+---
+
+# Filters
+
+Filters control what data is included in a snapshot. Exclude cache tables, ignore volatile timestamp columns, or skip transient rows. Filters are applied during snapshot capture and affect all downstream operations (diff, merge, apply).
+
+```php
+use Merql\Filter\TableFilter;
+use Merql\Filter\ColumnFilter;
+use Merql\Snapshot\Snapshotter;
+
+$snapshotter = new Snapshotter($pdo);
+
+$snapshot = $snapshotter->capture('baseline', filters: [
+    TableFilter::exclude(['sessions', 'cache_*']),
+    ColumnFilter::ignore(['updated_at', 'modified_date']),
+]);
+```
+
+## TableFilter
+
+Controls which tables are included in a snapshot. Supports glob patterns via PHP's `fnmatch()`.
+
+### Exclude tables
+
+```php
+use Merql\Filter\TableFilter;
+
+$filter = TableFilter::exclude(['sessions', 'cache_*', 'wp_*_log']);
+```
+
+Any table matching an exclude pattern is omitted from the snapshot. The `*` wildcard matches any sequence of characters.
+
+### Include tables
+
+```php
+$filter = TableFilter::include(['posts', 'comments', 'users']);
+```
+
+Only tables matching an include pattern are captured. All others are excluded.
+
+### How it works
+
+The filter's `apply()` method takes a list of table names and returns the filtered subset:
+
+```php
+$allTables = ['posts', 'comments', 'sessions', 'cache_pages', 'users'];
+
+$filter = TableFilter::exclude(['sessions', 'cache_*']);
+$filtered = $filter->apply($allTables);
+// ['posts', 'comments', 'users']
+
+$filter = TableFilter::include(['posts', 'users']);
+$filtered = $filter->apply($allTables);
+// ['posts', 'users']
+```
+
+When both include and exclude patterns are present (through separate filter instances), exclude is evaluated first. A table must not match any exclude pattern and must match at least one include pattern to be kept.
+
+## ColumnFilter
+
+Removes specific columns from row data during capture. Useful for volatile columns that change on every write and would cause false diffs.
+
+```php
+use Merql\Filter\ColumnFilter;
+
+$filter = ColumnFilter::ignore(['updated_at', 'modified_date', 'last_login']);
+```
+
+### Common use cases
+
+- `updated_at` / `modified_at` timestamps that change on every save.
+- `revision` counters that auto-increment.
+- `session_token` or other transient fields.
+
+### How it works
+
+The filter strips named columns from each row after the row key is computed:
+
+```php
+$filter = ColumnFilter::ignore(['updated_at']);
+
+$row = ['id' => 1, 'title' => 'Hello', 'updated_at' => '2026-01-15 10:30:00'];
+$filtered = $filter->applyToRow($row);
+// ['id' => 1, 'title' => 'Hello']
+```
+
+The row key (identity) is computed from the unfiltered row. This means identity columns are never affected by the column filter. Only the data used for fingerprinting and diffing is filtered.
+
+## RowFilter
+
+Filters individual rows using a predicate closure. The closure receives the table name and the full row data, and returns `true` to include the row or `false` to exclude it.
+
+```php
+use Merql\Filter\RowFilter;
+
+// Exclude draft posts.
+$filter = RowFilter::create(function (string $table, array $row): bool {
+    if ($table === 'posts' && ($row['status'] ?? '') === 'draft') {
+        return false;
+    }
+    return true;
+});
+
+// Exclude rows with NULL email.
+$filter = RowFilter::create(function (string $table, array $row): bool {
+    if ($table === 'users') {
+        return $row['email'] !== null;
+    }
+    return true;
+});
+```
+
+### How it works
+
+The `shouldInclude()` method is called for every row during capture:
+
+```php
+$include = $filter->shouldInclude('posts', ['id' => 1, 'status' => 'draft']);
+// false
+```
+
+Excluded rows are not fingerprinted, not stored in the snapshot, and do not appear in diffs or merges.
+
+## Combining filters
+
+Pass multiple filters to `capture()`. At most one of each filter type is used:
+
+```php
+$snapshot = $snapshotter->capture('baseline', filters: [
+    TableFilter::exclude(['cache_*']),
+    ColumnFilter::ignore(['updated_at']),
+    RowFilter::create(fn($table, $row) => ($row['active'] ?? '1') === '1'),
+]);
+```
+
+Processing order:
+
+1. **TableFilter** runs first, determining which tables to capture.
+2. For each table, rows are read from the database.
+3. **RowFilter** runs on each row, excluding rows that do not match.
+4. The **row key** is computed from the unfiltered row (identity columns intact).
+5. **ColumnFilter** strips ignored columns from the row data.
+6. The **fingerprint** is computed from the filtered row data.
+
+This order ensures that identity columns are always available for key computation, even if those columns are later stripped by the column filter.
+
+## Filters and consistency
+
+The same filters should be used for all three snapshots in a merge (base, ours, theirs). If different filters are used, rows or columns may appear to have been added or removed when they were actually just filtered differently.
+
+```php
+// Use the same filter set for all snapshots.
+$filters = [
+    TableFilter::exclude(['sessions']),
+    ColumnFilter::ignore(['updated_at']),
+];
+
+$base   = $snapshotter->capture('base', filters: $filters);
+$ours   = $snapshotter->capture('ours', filters: $filters);
+$theirs = $snapshotter->capture('theirs', filters: $filters);
+```

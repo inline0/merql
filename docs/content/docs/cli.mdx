@@ -1,0 +1,186 @@
+---
+title: CLI Reference
+description: Full reference for the merql command-line interface. Snapshot, diff, and merge databases from the terminal.
+---
+
+# CLI Reference
+
+merql ships with a CLI at `bin/merql` for capturing snapshots, computing diffs, and running merges directly from the terminal.
+
+## Quick start
+
+```bash
+# Set up your database connection.
+export MERQL_DB_DSN="sqlite:/path/to/db.sqlite"
+
+# Capture a baseline.
+./bin/merql snapshot base
+
+# Make some changes, then capture again.
+./bin/merql snapshot current
+
+# See what changed.
+./bin/merql diff base current
+
+# Three-way merge with dry-run preview.
+./bin/merql merge base ours theirs --dry-run
+```
+
+## Environment variables
+
+The CLI reads database connection details from environment variables. You can connect using either a full DSN string or individual MySQL parameters.
+
+### DSN-based connection
+
+Use `MERQL_DB_DSN` for any PDO-supported database. This is the recommended approach for SQLite and for non-standard configurations.
+
+| Variable | Description | Example |
+|---|---|---|
+| `MERQL_DB_DSN` | Full PDO DSN string | `sqlite:/path/to/db.sqlite` |
+| `MERQL_DB_USER` | Username (optional with DSN) | `root` |
+| `MERQL_DB_PASS` | Password (optional with DSN) | `secret` |
+
+```bash
+# SQLite file.
+export MERQL_DB_DSN="sqlite:/var/data/myapp.sqlite"
+
+# SQLite in-memory.
+export MERQL_DB_DSN="sqlite::memory:"
+
+# MySQL via DSN.
+export MERQL_DB_DSN="mysql:host=127.0.0.1;dbname=mydb;charset=utf8mb4"
+export MERQL_DB_USER="root"
+export MERQL_DB_PASS="secret"
+```
+
+### MySQL shorthand
+
+When `MERQL_DB_DSN` is not set, the CLI falls back to MySQL-specific variables.
+
+| Variable | Default | Description |
+|---|---|---|
+| `MERQL_DB_NAME` | (required) | Database name |
+| `MERQL_DB_HOST` | `127.0.0.1` | MySQL host |
+| `MERQL_DB_PORT` | `3306` | MySQL port |
+| `MERQL_DB_USER` | `root` | MySQL username |
+| `MERQL_DB_PASS` | (empty) | MySQL password |
+
+```bash
+export MERQL_DB_NAME="wordpress"
+export MERQL_DB_HOST="127.0.0.1"
+export MERQL_DB_PORT="3306"
+export MERQL_DB_USER="root"
+export MERQL_DB_PASS="password"
+```
+
+## Commands
+
+### `merql snapshot <name>`
+
+Capture the current database state and save it as a named snapshot.
+
+```bash
+./bin/merql snapshot baseline
+```
+
+Output:
+
+```
+Snapshot 'baseline' saved
+Tables: posts, comments, users, settings
+```
+
+Snapshots are persisted as JSON files in `.merql/snapshots/` by default. The name must contain only alphanumeric characters, dashes, and underscores.
+
+Typical workflow: capture a snapshot before making changes, then capture another after. The two snapshots form the basis of a diff or merge.
+
+### `merql diff <base> <current>`
+
+Compare two named snapshots and display a summary of differences.
+
+```bash
+./bin/merql diff baseline current
+```
+
+Output:
+
+```
+Changeset: baseline -> current
+  Inserts: 3
+  Updates: 7
+  Deletes: 1
+```
+
+Both snapshots must already exist (previously captured with `merql snapshot`). The diff does not require a database connection since it operates on saved snapshot files.
+
+### `merql merge <base> <ours> <theirs>`
+
+Perform a three-way merge of three named snapshots.
+
+```bash
+./bin/merql merge base ours theirs
+```
+
+Output:
+
+```
+Merge: base + ours + theirs
+  Operations: 12
+  Conflicts:  0
+  Clean:      yes
+```
+
+All three snapshots must already exist. The merge does not require a database connection since it operates on saved snapshot files.
+
+#### `--dry-run`
+
+Add the `--dry-run` flag to preview the SQL statements that the merge would generate, without executing anything.
+
+```bash
+./bin/merql merge base ours theirs --dry-run
+```
+
+Output:
+
+```
+Merge: base + ours + theirs
+  Operations: 3
+  Conflicts:  0
+  Clean:      yes
+
+Dry run SQL:
+  INSERT INTO `posts` (`id`, `title`, `status`) VALUES ('10', 'New Post', 'draft');
+  UPDATE `posts` SET `title` = 'Updated Title' WHERE `id` = '5';
+  DELETE FROM `comments` WHERE `id` = '3';
+```
+
+## Testing commands
+
+merql includes additional CLI tools for its oracle-driven test suite. These are used during development to verify merge correctness.
+
+| Command | Description |
+|---|---|
+| `./bin/oracle <name>` | Compute expected merge result for a scenario |
+| `./bin/actual <name>` | Run merql on a scenario and capture output |
+| `./bin/compare <name>` | Diff oracle vs actual output |
+| `./bin/test-scenario <name>` | Full pipeline: setup, oracle, actual, compare |
+| `./bin/test-regression` | Run all scenarios |
+| `./bin/test-regression --jobs 4` | Run scenarios in parallel |
+| `./bin/test-regression --category merge` | Run scenarios by category |
+| `./bin/test-regression --fast` | Pass/fail only, no reports |
+| `./bin/verify-compliance` | Full compliance report |
+| `./bin/verify-all` | PHPStan + code style + PHPUnit + oracle regression |
+
+## Snapshot storage
+
+By default, snapshots are stored in `.merql/snapshots/` relative to the working directory. Each snapshot is a single JSON file named `<name>.json`.
+
+To change the storage directory, set it in PHP before using the CLI (or modify the CLI script):
+
+```php
+use Merql\Snapshot\SnapshotStore;
+
+SnapshotStore::setDirectory('/var/data/merql-snapshots');
+```
+
+Snapshot files are portable. You can copy them between machines, commit them to version control, or share them for collaborative debugging.

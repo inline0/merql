@@ -1,0 +1,169 @@
+---
+title: Conflict Handling
+description: How merql detects, reports, and resolves merge conflicts at the column level.
+---
+
+# Conflict Handling
+
+A conflict occurs when both sides of a merge change the same data in incompatible ways. merql detects four types of conflicts and provides automatic and manual resolution strategies.
+
+```php
+$result = $merge->merge($base, $ours, $theirs);
+
+if (!$result->isClean()) {
+    foreach ($result->conflicts() as $conflict) {
+        echo "{$conflict->table()}.{$conflict->column()}: "
+           . "{$conflict->oursValue()} vs {$conflict->theirsValue()}\n";
+    }
+}
+```
+
+## Conflict types
+
+### update_update
+
+Both sides changed the same column of the same row to different values. This is the most common conflict type.
+
+```
+Base:    posts #42  title = "Hello"
+Ours:    posts #42  title = "Welcome"
+Theirs:  posts #42  title = "Greetings"
+```
+
+The conflict reports: table `posts`, row key `42`, column `title`, ours value `Welcome`, theirs value `Greetings`, base value `Hello`.
+
+### update_delete
+
+One side updated a row, the other deleted it. merql cannot determine whether the update or the delete should win.
+
+```
+Ours:    posts #42  title = "Updated Title"    (updated)
+Theirs:  posts #42  (deleted)
+```
+
+The conflict reports: table `posts`, row key `42`, type `update_delete`. The ours value contains the full updated row. The theirs value is `null`.
+
+### delete_update
+
+The reverse of update_delete. Theirs updated the row, ours deleted it.
+
+```
+Ours:    posts #42  (deleted)
+Theirs:  posts #42  title = "Updated Title"    (updated)
+```
+
+The conflict reports: type `delete_update`. The ours value is `null`, the theirs value contains the full updated row.
+
+### insert_insert
+
+Both sides inserted a row with the same primary key. Since both rows are new (not present in base), merql cannot merge them.
+
+```
+Base:    (no row #99)
+Ours:    posts #99  { title: "My Post" }
+Theirs:  posts #99  { title: "Their Post" }
+```
+
+The conflict reports: type `insert_insert`. The ours value contains the ours row data, the theirs value contains the theirs row data.
+
+## The Conflict class
+
+Each conflict is a readonly object with these accessors:
+
+```php
+$conflict->table();      // string: table name
+$conflict->rowKey();     // string: encoded row identity key
+$conflict->type();       // string: "update_update"|"update_delete"|"delete_update"|"insert_insert"
+$conflict->column();     // ?string: column name (null for structural conflicts)
+$conflict->oursValue();  // mixed: our value (null for delete side, full row for structural)
+$conflict->theirsValue(); // mixed: their value (null for delete side, full row for structural)
+$conflict->baseValue();  // mixed: base value (null for inserts)
+```
+
+The `column()` method returns a column name for `update_update` conflicts and `null` for structural conflicts (`update_delete`, `delete_update`, `insert_insert`).
+
+### Decoding the primary key
+
+The row key is an encoded string. To get a named primary key array, pass the identity columns:
+
+```php
+$pk = $conflict->primaryKey(['id']);
+// ['id' => '42']
+
+$pk = $conflict->primaryKey(['tenant_id', 'user_id']);
+// ['tenant_id' => '1', 'user_id' => '99']
+```
+
+## Automatic resolution with ConflictPolicy
+
+The `ConflictResolver` applies a policy to resolve all conflicts at once:
+
+```php
+use Merql\Merge\ConflictPolicy;
+use Merql\Merge\ConflictResolver;
+
+// One side wins everywhere.
+$resolved = ConflictResolver::resolve($result, ConflictPolicy::OursWins);
+$resolved = ConflictResolver::resolve($result, ConflictPolicy::TheirsWins);
+
+// Manual: return the result unchanged (inspect conflicts yourself).
+$resolved = ConflictResolver::resolve($result, ConflictPolicy::Manual);
+```
+
+### ConflictPolicy enum
+
+| Value | Behavior |
+|---|---|
+| `OursWins` | Use ours value for update_update. Keep update for update_delete. Keep delete for delete_update. Use ours insert for insert_insert. |
+| `TheirsWins` | Use theirs value for update_update. Delete for update_delete. Keep update for delete_update. Use theirs insert for insert_insert. |
+| `Manual` | Return the result unchanged. All conflicts remain unresolved. |
+
+### How resolution works
+
+For `update_update` conflicts, the resolver patches the existing merge operation for that row, replacing the conflicted column value with the winning side's value.
+
+For structural conflicts (`update_delete`, `delete_update`, `insert_insert`), the resolver adds a new operation to the result:
+
+- `update_delete` with `OursWins` adds an UPDATE operation.
+- `update_delete` with `TheirsWins` adds a DELETE operation.
+- `delete_update` with `OursWins` adds a DELETE operation.
+- `delete_update` with `TheirsWins` adds an UPDATE operation.
+- `insert_insert` uses the winning side's row values.
+
+The resolved `MergeResult` has an empty conflicts list and can be applied directly.
+
+## Manual resolution
+
+For fine-grained control, inspect each conflict and build your own resolution:
+
+```php
+foreach ($result->conflicts() as $conflict) {
+    echo "Table:  {$conflict->table()}\n";
+    echo "Row:    {$conflict->rowKey()}\n";
+    echo "Type:   {$conflict->type()}\n";
+
+    if ($conflict->column() !== null) {
+        echo "Column: {$conflict->column()}\n";
+        echo "Base:   " . var_export($conflict->baseValue(), true) . "\n";
+        echo "Ours:   " . var_export($conflict->oursValue(), true) . "\n";
+        echo "Theirs: " . var_export($conflict->theirsValue(), true) . "\n";
+    }
+}
+```
+
+## Applying with unresolved conflicts
+
+The `Applier` refuses to apply a merge result that has unresolved conflicts. It throws a `ConflictException`:
+
+```php
+use Merql\Exceptions\ConflictException;
+
+try {
+    $applier->apply($result);
+} catch (ConflictException $e) {
+    echo $e->getMessage();
+    // "Cannot apply merge with 3 unresolved conflicts"
+}
+```
+
+Always resolve conflicts before applying, either with `ConflictResolver::resolve()` or by building a clean `MergeResult` manually.

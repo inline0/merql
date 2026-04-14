@@ -1,0 +1,149 @@
+---
+title: Row Identity
+description: How merql determines which rows are "the same" across snapshots using primary keys, natural keys, and content hashes.
+---
+
+# Row Identity
+
+Row identity determines how merql matches rows across snapshots. When comparing base to ours, it needs to know that row X in base is the same logical row as row Y in ours, even if some column values changed. The identity strategy controls which columns form the row key.
+
+```php
+use Merql\Identity\PrimaryKeyIdentity;
+
+$identity = new PrimaryKeyIdentity(['id']);
+$key = $identity->key(['id' => 42, 'title' => 'Hello']);
+// "42"
+```
+
+## The RowIdentity interface
+
+All identity strategies implement two methods:
+
+```php
+interface RowIdentity
+{
+    public function key(array $row): string;
+    public function columns(): array;
+}
+```
+
+`key()` builds a unique string identifier from a row's data. `columns()` returns the column names used for identity.
+
+## PrimaryKeyIdentity
+
+The default strategy. Matches rows by their primary key columns.
+
+```php
+use Merql\Identity\PrimaryKeyIdentity;
+
+// Single-column PK.
+$identity = new PrimaryKeyIdentity(['id']);
+$key = $identity->key(['id' => 42, 'title' => 'Hello']);
+// "42"
+
+// Composite PK.
+$identity = new PrimaryKeyIdentity(['tenant_id', 'user_id']);
+$key = $identity->key(['tenant_id' => 1, 'user_id' => 99, 'name' => 'Alice']);
+// "1\x1F99" (unit separator between parts)
+```
+
+This is what merql uses by default when the table has a primary key defined in its schema.
+
+## NaturalKeyIdentity
+
+For tables without an auto-increment primary key, matches rows by unique constraint columns. Useful when the PK is a UUID or when the table uses a composite unique constraint as its logical identity.
+
+```php
+use Merql\Identity\NaturalKeyIdentity;
+
+$identity = new NaturalKeyIdentity(['email']);
+$key = $identity->key(['id' => 1, 'email' => 'alice@example.com', 'name' => 'Alice']);
+// "alice@example.com"
+
+$identity = new NaturalKeyIdentity(['country', 'postal_code']);
+$key = $identity->key(['country' => 'US', 'postal_code' => '90210', 'city' => 'Beverly Hills']);
+// "US\x1F90210"
+```
+
+## ContentHashIdentity
+
+Fallback for tables with no primary key and no unique constraints. Computes a SHA-256 hash of all column values. Two rows are the same if every column matches.
+
+```php
+use Merql\Identity\ContentHashIdentity;
+
+$identity = new ContentHashIdentity(['name', 'value']);
+$key = $identity->key(['name' => 'color', 'value' => 'blue']);
+// "a3f2..." (SHA-256 hash)
+```
+
+Content hash identity has a limitation: if a row's content changes, its hash changes, so the row appears as a delete of the old hash and an insert of the new hash rather than an update. This is an inherent tradeoff when there are no stable identity columns.
+
+## PrimaryKeyResolver
+
+The `PrimaryKeyResolver` automatically selects the identity columns for a table based on its schema:
+
+```php
+use Merql\Schema\PrimaryKeyResolver;
+
+$columns = PrimaryKeyResolver::resolve($schema);
+```
+
+Resolution order:
+
+1. If the table has a primary key, use the primary key columns.
+2. If the table has unique keys, use the first unique key's columns.
+3. If neither exists, use all columns (content hash fallback).
+
+The `Snapshotter` calls `PrimaryKeyResolver::resolve()` automatically for each table during capture. The chosen identity columns are stored in the `TableSnapshot` and used for all subsequent diff and merge operations.
+
+## Row key encoding
+
+Row keys are encoded strings that combine multiple column values with a unit separator (`\x1F`). Values containing the separator or the percent sign are escaped to prevent collisions:
+
+```php
+use Merql\Snapshot\Snapshotter;
+
+// Encode.
+$key = Snapshotter::buildRowKey(
+    ['tenant_id' => '1', 'user_id' => '99'],
+    ['tenant_id', 'user_id'],
+);
+// "1\x1F99"
+
+// Decode.
+$parts = Snapshotter::decodeRowKey($key);
+// ['1', '99']
+```
+
+Escaping rules:
+
+| Original | Escaped |
+|---|---|
+| `%` | `%25` |
+| `\x1F` (unit separator) | `%1F` |
+
+This ensures that a value containing `\x1F` does not split into multiple key parts. The encoding is deterministic and reversible.
+
+## Auto-increment divergence
+
+When both sides insert new rows, auto-increment IDs will differ between branches. Row #100 in ours might be a completely different record than row #100 in theirs.
+
+merql handles this by matching on primary key. If both sides inserted a row with the same auto-increment ID, it is flagged as an `insert_insert` conflict. To avoid this, use natural keys (unique columns that are stable across branches) for tables where concurrent inserts are expected.
+
+```php
+// A natural key on (slug) avoids auto-increment collisions.
+$identity = new NaturalKeyIdentity(['slug']);
+```
+
+## Identity in snapshots
+
+The identity columns chosen during capture are stored with each `TableSnapshot`:
+
+```php
+$tableSnapshot = $snapshot->getTable('posts');
+$tableSnapshot->identityColumns;
+// ['id']
+```
+
+These columns are used by `SqlGenerator` to build WHERE clauses for UPDATE and DELETE statements, and by `Conflict::primaryKey()` to decode the row key back into named columns.
