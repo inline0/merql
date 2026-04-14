@@ -5,8 +5,8 @@ export default function Home() {
   return (
     <HomePage config={config}>
       <CTASection
-        title="Ready to merge smarter?"
-        description="Install the Composer package and run your first three-way database merge in seconds."
+        title="Ready to search smarter?"
+        description="Install the Composer package and run your first text or AST search in seconds."
         cta={{ label: "Read the Docs", href: "/docs" }}
       />
     </HomePage>
