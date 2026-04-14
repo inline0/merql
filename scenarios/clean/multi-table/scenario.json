@@ -1,0 +1,11 @@
+{
+    "name": "multi-table",
+    "category": "clean",
+    "description": "Changes spanning two tables: ours inserts a post, theirs updates and inserts settings. Clean merge.",
+    "tables": ["posts", "settings"],
+    "expectations": {
+        "conflicts": 0,
+        "operations": 3,
+        "is_clean": true
+    }
+}

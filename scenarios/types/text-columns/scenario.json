@@ -1,0 +1,11 @@
+{
+    "name": "text-columns",
+    "category": "types",
+    "description": "Theirs updates both varchar and text columns, ours unchanged. Clean merge accepts the updates.",
+    "tables": ["test_content"],
+    "expectations": {
+        "conflicts": 0,
+        "operations": 1,
+        "is_clean": true
+    }
+}

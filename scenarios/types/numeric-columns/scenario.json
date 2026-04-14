@@ -1,0 +1,11 @@
+{
+    "name": "numeric-columns",
+    "category": "types",
+    "description": "Theirs updates int and decimal columns, ours unchanged. Clean merge accepts the numeric updates.",
+    "tables": ["test_numbers"],
+    "expectations": {
+        "conflicts": 0,
+        "operations": 1,
+        "is_clean": true
+    }
+}

@@ -1,0 +1,15 @@
+{
+    "tables": {
+        "test_content": {
+            "columns": {
+                "id": "int",
+                "short_text": "varchar(255)",
+                "long_text": "text"
+            },
+            "primaryKey": ["id"],
+            "rows": [
+                {"id": 1, "short_text": "hello", "long_text": "A paragraph of text."}
+            ]
+        }
+    }
+}

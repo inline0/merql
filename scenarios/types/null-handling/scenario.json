@@ -1,0 +1,11 @@
+{
+    "name": "null-handling",
+    "category": "types",
+    "description": "Theirs transitions a column from NULL to a value, ours unchanged. Clean merge accepts the update.",
+    "tables": ["test_data"],
+    "expectations": {
+        "conflicts": 0,
+        "operations": 1,
+        "is_clean": true
+    }
+}

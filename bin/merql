@@ -1,0 +1,108 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+require_once __DIR__ . '/../vendor/autoload.php';
+
+use Merql\Apply\DryRun;
+use Merql\Connection;
+use Merql\Merql;
+use Merql\Snapshot\SnapshotStore;
+
+$command = $argv[1] ?? null;
+
+if ($command === null) {
+    echo "Usage: merql <command> [options]\n\n";
+    echo "Commands:\n";
+    echo "  snapshot <name>              Capture current database state\n";
+    echo "  diff <base> <current>        Show changeset between two snapshots\n";
+    echo "  merge <base> <ours> <theirs> Three-way merge\n";
+    echo "  apply <merge-result>         Apply a merge result\n";
+    echo "  conflicts <merge-result>     List unresolved conflicts\n";
+    exit(0);
+}
+
+match ($command) {
+    'snapshot' => cmdSnapshot($argv),
+    'diff' => cmdDiff($argv),
+    'merge' => cmdMerge($argv),
+    default => fprintf(STDERR, "Unknown command: %s\n", $command) ?: exit(1),
+};
+
+function cmdSnapshot(array $argv): void
+{
+    $name = $argv[2] ?? null;
+    if ($name === null) {
+        fprintf(STDERR, "Usage: merql snapshot <name>\n");
+        exit(1);
+    }
+
+    $pdo = getConnection();
+    Merql::init($pdo);
+    $snapshot = Merql::snapshot($name);
+
+    echo "Snapshot '{$name}' saved\n";
+    echo "Tables: " . implode(', ', $snapshot->tableNames()) . "\n";
+}
+
+function cmdDiff(array $argv): void
+{
+    $base = $argv[2] ?? null;
+    $current = $argv[3] ?? null;
+    if ($base === null || $current === null) {
+        fprintf(STDERR, "Usage: merql diff <base> <current>\n");
+        exit(1);
+    }
+
+    $changeset = Merql::diff($base, $current);
+
+    echo "Changeset: {$base} -> {$current}\n";
+    echo "  Inserts: " . count($changeset->inserts()) . "\n";
+    echo "  Updates: " . count($changeset->updates()) . "\n";
+    echo "  Deletes: " . count($changeset->deletes()) . "\n";
+}
+
+function cmdMerge(array $argv): void
+{
+    $base = $argv[2] ?? null;
+    $ours = $argv[3] ?? null;
+    $theirs = $argv[4] ?? null;
+    $dryRun = in_array('--dry-run', $argv, true);
+
+    if ($base === null || $ours === null || $theirs === null) {
+        fprintf(STDERR, "Usage: merql merge <base> <ours> <theirs> [--dry-run]\n");
+        exit(1);
+    }
+
+    $result = Merql::merge($base, $ours, $theirs);
+
+    echo "Merge: {$base} + {$ours} + {$theirs}\n";
+    echo "  Operations: {$result->operationCount()}\n";
+    echo "  Conflicts:  {$result->conflictCount()}\n";
+    echo "  Clean:      " . ($result->isClean() ? 'yes' : 'no') . "\n";
+
+    if ($dryRun) {
+        echo "\nDry run SQL:\n";
+        $baseSnapshot = SnapshotStore::load($base);
+        foreach (DryRun::generate($result, $baseSnapshot) as $sql) {
+            echo "  {$sql};\n";
+        }
+    }
+}
+
+function getConnection(): PDO
+{
+    $host = getenv('MERQL_DB_HOST') ?: '127.0.0.1';
+    $port = (int) (getenv('MERQL_DB_PORT') ?: '3306');
+    $db = getenv('MERQL_DB_NAME') ?: '';
+    $user = getenv('MERQL_DB_USER') ?: 'root';
+    $pass = getenv('MERQL_DB_PASS') ?: '';
+
+    if ($db === '') {
+        fprintf(STDERR, "Set MERQL_DB_NAME environment variable\n");
+        exit(1);
+    }
+
+    return Connection::create($host, $db, $user, $pass, $port);
+}

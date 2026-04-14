@@ -1,0 +1,36 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+require_once __DIR__ . '/../vendor/autoload.php';
+
+use Merql\Tests\Oracle\ScenarioRepository;
+use Merql\Tests\Oracle\ScenarioRunner;
+
+$name = $argv[1] ?? null;
+if ($name === null) {
+    fprintf(STDERR, "Usage: test-scenario <scenario-name>\n");
+    exit(1);
+}
+
+$repo = new ScenarioRepository();
+$scenario = $repo->find($name);
+
+if ($scenario === null) {
+    fprintf(STDERR, "Scenario '%s' not found\n", $name);
+    exit(1);
+}
+
+$result = ScenarioRunner::run($scenario);
+
+if ($result['pass']) {
+    echo "PASS  {$name}\n";
+    exit(0);
+}
+
+echo "FAIL  {$name}\n";
+foreach ($result['failures'] as $failure) {
+    echo "  - {$failure}\n";
+}
+exit(1);

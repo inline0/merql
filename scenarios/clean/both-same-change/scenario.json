@@ -1,0 +1,11 @@
+{
+    "name": "both-same-change",
+    "category": "clean",
+    "description": "Both sides made the identical change. No conflict, accept the agreed value.",
+    "tables": ["posts"],
+    "expectations": {
+        "conflicts": 0,
+        "operations": 1,
+        "is_clean": true
+    }
+}

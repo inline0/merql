@@ -1,0 +1,17 @@
+{
+    "name": "partial-conflict",
+    "category": "conflict",
+    "description": "Both sides change the same row but only one column (title) conflicts. Content merges clean from ours, status merges clean from theirs.",
+    "tables": ["test_posts"],
+    "expectations": {
+        "conflicts": 1,
+        "is_clean": false,
+        "conflict_details": [
+            {
+                "table": "test_posts",
+                "column": "title",
+                "type": "update_update"
+            }
+        ]
+    }
+}

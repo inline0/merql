@@ -1,0 +1,11 @@
+{
+    "name": "insert-only-theirs",
+    "category": "clean",
+    "description": "Theirs inserted a new row, ours unchanged. Clean merge accepts the insert.",
+    "tables": ["posts"],
+    "expectations": {
+        "conflicts": 0,
+        "operations": 1,
+        "is_clean": true
+    }
+}

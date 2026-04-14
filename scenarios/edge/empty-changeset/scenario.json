@@ -1,0 +1,11 @@
+{
+    "name": "empty-changeset",
+    "category": "edge",
+    "description": "All three states are identical. No changes on either side. Merge produces zero operations.",
+    "tables": ["test_posts"],
+    "expectations": {
+        "conflicts": 0,
+        "operations": 0,
+        "is_clean": true
+    }
+}

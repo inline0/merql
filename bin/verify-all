@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+
+set -e
+
+cd "$(dirname "$0")/.."
+
+echo "=== PHPStan ==="
+vendor/bin/phpstan analyse
+echo ""
+
+echo "=== PHPCS ==="
+vendor/bin/phpcs
+echo ""
+
+echo "=== PHPUnit ==="
+vendor/bin/phpunit --testsuite=unit
+echo ""
+
+echo "=== Oracle Regression ==="
+php bin/test-regression
+echo ""
+
+echo "=== All checks passed ==="

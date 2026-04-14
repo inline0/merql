@@ -1,0 +1,16 @@
+{
+    "tables": {
+        "posts": {
+            "columns": {
+                "id": "int",
+                "title": "varchar(255)",
+                "content": "text",
+                "status": "varchar(20)"
+            },
+            "primaryKey": ["id"],
+            "rows": [
+                {"id": 1, "title": "Same", "content": "Body", "status": "draft"}
+            ]
+        }
+    }
+}

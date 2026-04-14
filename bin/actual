@@ -1,0 +1,32 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+require_once __DIR__ . '/../vendor/autoload.php';
+
+use Merql\Tests\Oracle\ActualCapture;
+use Merql\Tests\Oracle\ScenarioRepository;
+
+$name = $argv[1] ?? null;
+if ($name === null) {
+    fprintf(STDERR, "Usage: actual <scenario-name>\n");
+    exit(1);
+}
+
+$repo = new ScenarioRepository();
+$scenario = $repo->find($name);
+
+if ($scenario === null) {
+    fprintf(STDERR, "Scenario '%s' not found\n", $name);
+    exit(1);
+}
+
+$result = ActualCapture::capture($scenario);
+
+echo "Actual computed for: {$name}\n";
+echo "  Ours changeset:   {$result['oursChangeset']->count()} operations\n";
+echo "  Theirs changeset: {$result['theirsChangeset']->count()} operations\n";
+echo "  Merge result:     {$result['mergeResult']->operationCount()} operations, "
+    . "{$result['mergeResult']->conflictCount()} conflicts\n";
+echo "  Clean:            " . ($result['mergeResult']->isClean() ? 'yes' : 'no') . "\n";

@@ -1,0 +1,16 @@
+{
+    "name": "delete-vs-update",
+    "category": "conflict",
+    "description": "Ours deletes a row while theirs updates it, producing a conflict",
+    "tables": ["test_posts"],
+    "expectations": {
+        "conflicts": 1,
+        "is_clean": false,
+        "conflict_details": [
+            {
+                "table": "test_posts",
+                "type": "delete_update"
+            }
+        ]
+    }
+}

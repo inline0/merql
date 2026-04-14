@@ -1,0 +1,11 @@
+{
+    "name": "delete-only-theirs",
+    "category": "clean",
+    "description": "Theirs deleted a row, ours unchanged. Clean merge accepts the delete.",
+    "tables": ["posts"],
+    "expectations": {
+        "conflicts": 0,
+        "operations": 1,
+        "is_clean": true
+    }
+}

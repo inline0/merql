@@ -1,0 +1,16 @@
+{
+    "name": "both-insert-same-pk",
+    "category": "conflict",
+    "description": "Both sides insert a row with the same primary key but different values, producing a conflict",
+    "tables": ["test_posts"],
+    "expectations": {
+        "conflicts": 1,
+        "is_clean": false,
+        "conflict_details": [
+            {
+                "table": "test_posts",
+                "type": "insert_insert"
+            }
+        ]
+    }
+}

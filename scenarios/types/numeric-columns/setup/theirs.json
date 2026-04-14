@@ -1,0 +1,15 @@
+{
+    "tables": {
+        "test_numbers": {
+            "columns": {
+                "id": "int",
+                "int_val": "int",
+                "decimal_val": "decimal(10,2)"
+            },
+            "primaryKey": ["id"],
+            "rows": [
+                {"id": 1, "int_val": 100, "decimal_val": "2.72"}
+            ]
+        }
+    }
+}

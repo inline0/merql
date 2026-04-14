@@ -1,0 +1,17 @@
+{
+    "name": "both-update-same-column",
+    "category": "conflict",
+    "description": "Both sides update the same column to different values, producing a conflict",
+    "tables": ["test_posts"],
+    "expectations": {
+        "conflicts": 1,
+        "is_clean": false,
+        "conflict_details": [
+            {
+                "table": "test_posts",
+                "column": "title",
+                "type": "update_update"
+            }
+        ]
+    }
+}

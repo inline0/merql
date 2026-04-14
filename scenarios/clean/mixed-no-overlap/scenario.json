@@ -1,0 +1,11 @@
+{
+    "name": "mixed-no-overlap",
+    "category": "clean",
+    "description": "Ours inserted a row, theirs updated a different row. No overlap, clean merge.",
+    "tables": ["posts"],
+    "expectations": {
+        "conflicts": 0,
+        "operations": 2,
+        "is_clean": true
+    }
+}

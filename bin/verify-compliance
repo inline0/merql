@@ -1,0 +1,52 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+require_once __DIR__ . '/../vendor/autoload.php';
+
+use Merql\Tests\Oracle\ScenarioRepository;
+use Merql\Tests\Oracle\ScenarioRunner;
+
+$repo = new ScenarioRepository();
+$all = $repo->all();
+
+$byCategory = [];
+foreach ($all as $scenario) {
+    $byCategory[$scenario['category']][] = $scenario;
+}
+
+echo "merql Compliance Report\n";
+echo "=======================\n\n";
+
+$totalPassed = 0;
+$totalFailed = 0;
+
+foreach ($byCategory as $category => $scenarios) {
+    $results = ScenarioRunner::runAll($scenarios);
+    $passed = count(array_filter($results, fn($r) => $r['pass']));
+    $total = count($results);
+
+    $label = ucfirst($category) . ' Scenarios:';
+    printf("%-28s %d/%d passed\n", $label, $passed, $total);
+
+    foreach ($results as $result) {
+        $status = $result['pass'] ? 'PASS' : 'FAIL';
+        printf("  %-25s %s\n", $result['name'], $status);
+
+        if (!$result['pass']) {
+            foreach ($result['failures'] as $failure) {
+                echo "    - {$failure}\n";
+            }
+        }
+    }
+
+    echo "\n";
+    $totalPassed += $passed;
+    $totalFailed += ($total - $passed);
+}
+
+$total = $totalPassed + $totalFailed;
+echo "Total: {$totalPassed}/{$total} scenarios passed\n";
+
+exit($totalFailed > 0 ? 1 : 0);

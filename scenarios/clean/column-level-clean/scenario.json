@@ -1,0 +1,11 @@
+{
+    "name": "column-level-clean",
+    "category": "clean",
+    "description": "Both sides changed the same row but different columns. Column-level merge resolves cleanly.",
+    "tables": ["posts"],
+    "expectations": {
+        "conflicts": 0,
+        "operations": 1,
+        "is_clean": true
+    }
+}

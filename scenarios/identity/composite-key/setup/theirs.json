@@ -1,0 +1,16 @@
+{
+    "tables": {
+        "test_meta": {
+            "columns": {
+                "post_id": "int",
+                "meta_key": "varchar(255)",
+                "meta_value": "text"
+            },
+            "primaryKey": ["post_id", "meta_key"],
+            "rows": [
+                {"post_id": 1, "meta_key": "color", "meta_value": "blue"},
+                {"post_id": 1, "meta_key": "size", "meta_value": "large"}
+            ]
+        }
+    }
+}

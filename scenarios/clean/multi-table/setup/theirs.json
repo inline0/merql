@@ -1,0 +1,27 @@
+{
+    "tables": {
+        "posts": {
+            "columns": {
+                "id": "int",
+                "title": "varchar(255)",
+                "content": "text",
+                "status": "varchar(20)"
+            },
+            "primaryKey": ["id"],
+            "rows": [
+                {"id": 1, "title": "Hello", "content": "Body", "status": "draft"}
+            ]
+        },
+        "settings": {
+            "columns": {
+                "key": "varchar(255)",
+                "value": "text"
+            },
+            "primaryKey": ["key"],
+            "rows": [
+                {"key": "site_name", "value": "New"},
+                {"key": "theme", "value": "dark"}
+            ]
+        }
+    }
+}

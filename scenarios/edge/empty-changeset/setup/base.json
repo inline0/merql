@@ -1,0 +1,14 @@
+{
+    "tables": {
+        "test_posts": {
+            "columns": {
+                "id": "int",
+                "title": "varchar(255)"
+            },
+            "primaryKey": ["id"],
+            "rows": [
+                {"id": 1, "title": "Hello"}
+            ]
+        }
+    }
+}

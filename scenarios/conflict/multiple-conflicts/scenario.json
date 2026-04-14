@@ -1,0 +1,10 @@
+{
+    "name": "multiple-conflicts",
+    "category": "conflict",
+    "description": "Both sides update the title column on two different rows to different values, producing two conflicts",
+    "tables": ["test_posts"],
+    "expectations": {
+        "conflicts": 2,
+        "is_clean": false
+    }
+}

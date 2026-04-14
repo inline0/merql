@@ -1,0 +1,49 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+require_once __DIR__ . '/../vendor/autoload.php';
+
+use Merql\Tests\Oracle\ScenarioRepository;
+use Merql\Tests\Oracle\ScenarioRunner;
+
+$opts = getopt('', ['category:', 'fast', 'jobs:']);
+$category = $opts['category'] ?? null;
+$fast = isset($opts['fast']);
+
+$repo = new ScenarioRepository();
+$scenarios = $category !== null ? $repo->byCategory($category) : $repo->all();
+
+if ($scenarios === []) {
+    echo "No scenarios found" . ($category ? " for category '{$category}'" : "") . "\n";
+    exit(0);
+}
+
+$passed = 0;
+$failed = 0;
+$results = ScenarioRunner::runAll($scenarios);
+
+foreach ($results as $result) {
+    if ($result['pass']) {
+        $passed++;
+        if (!$fast) {
+            echo "PASS  {$result['name']}\n";
+        }
+    } else {
+        $failed++;
+        echo "FAIL  {$result['name']}\n";
+        if (!$fast) {
+            foreach ($result['failures'] as $failure) {
+                echo "  - {$failure}\n";
+            }
+        }
+    }
+}
+
+echo "\n";
+echo "Total: " . count($results) . " scenarios\n";
+echo "Passed: {$passed}\n";
+echo "Failed: {$failed}\n";
+
+exit($failed > 0 ? 1 : 0);

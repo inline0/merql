@@ -1,0 +1,11 @@
+{
+    "name": "composite-key",
+    "category": "identity",
+    "description": "Row identified by composite primary key (post_id, meta_key). Theirs updates one row, ours unchanged. Clean merge.",
+    "tables": ["test_meta"],
+    "expectations": {
+        "conflicts": 0,
+        "operations": 1,
+        "is_clean": true
+    }
+}
