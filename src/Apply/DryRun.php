@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Merql\Apply;
 
+use Merql\Driver\Driver;
 use Merql\Merge\MergeResult;
 use Merql\Snapshot\Snapshot;
 
@@ -22,8 +23,9 @@ final class DryRun
         MergeResult $result,
         ?Snapshot $base = null,
         array $fkDependencies = [],
+        ?Driver $driver = null,
     ): array {
-        $statements = SqlGenerator::generate($result, $base, $fkDependencies);
+        $statements = SqlGenerator::generate($result, $base, $fkDependencies, $driver);
         $output = [];
 
         foreach ($statements as $stmt) {

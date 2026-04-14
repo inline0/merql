@@ -4,45 +4,11 @@ declare(strict_types=1);
 
 namespace Merql\Apply;
 
-use PDO;
-
 /**
- * Reads foreign key relationships and computes table dependency order.
+ * Computes table dependency order from foreign key relationships.
  */
 final class ForeignKeyResolver
 {
-    /**
-     * Read FK relationships from the database.
-     *
-     * @return array<string, list<string>> Child table to list of parent tables.
-     */
-    public static function readDependencies(PDO $pdo): array
-    {
-        $dbName = $pdo->query('SELECT DATABASE()');
-        if ($dbName === false) {
-            return [];
-        }
-
-        $db = (string) $dbName->fetchColumn();
-        $stmt = $pdo->prepare(
-            'SELECT TABLE_NAME, REFERENCED_TABLE_NAME '
-            . 'FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE '
-            . 'WHERE TABLE_SCHEMA = :db '
-            . 'AND REFERENCED_TABLE_NAME IS NOT NULL '
-            . 'GROUP BY TABLE_NAME, REFERENCED_TABLE_NAME'
-        );
-        $stmt->execute(['db' => $db]);
-
-        $deps = [];
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $child = $row['TABLE_NAME'];
-            $parent = $row['REFERENCED_TABLE_NAME'];
-            $deps[$child][] = $parent;
-        }
-
-        return $deps;
-    }
-
     /**
      * Build dependency map from snapshot metadata.
      * Used when no PDO is available (offline mode).

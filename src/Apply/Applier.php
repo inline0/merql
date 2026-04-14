@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Merql\Apply;
 
+use Merql\Driver\Driver;
+use Merql\Driver\DriverFactory;
 use Merql\Exceptions\ConflictException;
 use Merql\Merge\MergeResult;
 use Merql\Snapshot\Snapshot;
@@ -14,9 +16,13 @@ use PDO;
  */
 final class Applier
 {
+    private readonly Driver $driver;
+
     public function __construct(
         private readonly PDO $pdo,
+        ?Driver $driver = null,
     ) {
+        $this->driver = $driver ?? DriverFactory::create($pdo);
     }
 
     /**
@@ -30,8 +36,8 @@ final class Applier
             throw ConflictException::unresolved($result->conflictCount());
         }
 
-        $fkDeps = ForeignKeyResolver::readDependencies($this->pdo);
-        $statements = SqlGenerator::generate($result, $base, $fkDeps);
+        $fkDeps = $this->driver->readForeignKeys($this->pdo);
+        $statements = SqlGenerator::generate($result, $base, $fkDeps, $this->driver);
         $totalAffected = 0;
         $errors = [];
 

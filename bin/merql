@@ -93,16 +93,23 @@ function cmdMerge(array $argv): void
 
 function getConnection(): PDO
 {
-    $host = getenv('MERQL_DB_HOST') ?: '127.0.0.1';
-    $port = (int) (getenv('MERQL_DB_PORT') ?: '3306');
-    $db = getenv('MERQL_DB_NAME') ?: '';
-    $user = getenv('MERQL_DB_USER') ?: 'root';
-    $pass = getenv('MERQL_DB_PASS') ?: '';
+    // SQLite: set MERQL_DB_DSN=sqlite:/path/to/db.sqlite
+    // MySQL:  set MERQL_DB_NAME=mydb (plus optional host/port/user/pass)
+    $dsn = getenv('MERQL_DB_DSN') ?: '';
+    if ($dsn !== '') {
+        return Connection::fromDsn($dsn, getenv('MERQL_DB_USER') ?: '', getenv('MERQL_DB_PASS') ?: '');
+    }
 
+    $db = getenv('MERQL_DB_NAME') ?: '';
     if ($db === '') {
-        fprintf(STDERR, "Set MERQL_DB_NAME environment variable\n");
+        fprintf(STDERR, "Set MERQL_DB_DSN or MERQL_DB_NAME environment variable\n");
         exit(1);
     }
 
-    return Connection::create($host, $db, $user, $pass, $port);
+    $host = getenv('MERQL_DB_HOST') ?: '127.0.0.1';
+    $port = (int) (getenv('MERQL_DB_PORT') ?: '3306');
+    $user = getenv('MERQL_DB_USER') ?: 'root';
+    $pass = getenv('MERQL_DB_PASS') ?: '';
+
+    return Connection::mysql($host, $db, $user, $pass, $port);
 }

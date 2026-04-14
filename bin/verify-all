@@ -12,8 +12,12 @@ echo "=== PHPCS ==="
 vendor/bin/phpcs
 echo ""
 
-echo "=== PHPUnit ==="
+echo "=== PHPUnit (unit) ==="
 vendor/bin/phpunit --testsuite=unit
+echo ""
+
+echo "=== PHPUnit (integration) ==="
+vendor/bin/phpunit --testsuite=integration
 echo ""
 
 echo "=== Oracle Regression ==="

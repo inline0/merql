@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Merql\Snapshot;
 
+use Merql\Driver\Driver;
+use Merql\Driver\DriverFactory;
 use Merql\Filter\ColumnFilter;
 use Merql\Filter\RowFilter;
 use Merql\Filter\TableFilter;
@@ -17,11 +19,14 @@ use PDO;
 final class Snapshotter
 {
     private readonly SchemaReader $schemaReader;
+    private readonly Driver $driver;
 
     public function __construct(
         private readonly PDO $pdo,
+        ?Driver $driver = null,
     ) {
-        $this->schemaReader = new SchemaReader($pdo);
+        $this->driver = $driver ?? DriverFactory::create($pdo);
+        $this->schemaReader = new SchemaReader($pdo, $this->driver);
     }
 
     /**
@@ -77,7 +82,7 @@ final class Snapshotter
         $schema = $this->schemaReader->read($tableName);
         $identityColumns = PrimaryKeyResolver::resolve($schema);
 
-        $stmt = $this->pdo->query("SELECT * FROM `{$tableName}`");
+        $stmt = $this->pdo->query($this->driver->selectAll($tableName));
         $allRows = $stmt !== false ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
 
         $fingerprints = [];

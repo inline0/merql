@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Merql\Apply;
 
+use Merql\Driver\Driver;
 use Merql\Merge\MergeOperation;
 use Merql\Merge\MergeResult;
 use Merql\Snapshot\Snapshot;
+use Merql\Snapshot\Snapshotter;
 
 /**
  * Generates parameterized SQL statements from a merge result.
@@ -23,10 +25,11 @@ final class SqlGenerator
         MergeResult $result,
         ?Snapshot $base = null,
         array $fkDependencies = [],
+        ?Driver $driver = null,
     ): array {
+        $q = self::quoter($driver);
         $statements = [];
 
-        // Separate by operation type.
         $inserts = [];
         $updates = [];
         $deletes = [];
@@ -40,51 +43,49 @@ final class SqlGenerator
             };
         }
 
-        // Sort by FK dependency order if available.
         if ($fkDependencies !== []) {
             $allTables = array_unique(array_map(fn($op) => $op->table, $result->operations()));
             $tableOrder = ForeignKeyResolver::topologicalSort($fkDependencies, array_values($allTables));
 
-            // Inserts/updates: parent tables first.
             $inserts = ForeignKeyResolver::sortOperations($tableOrder, $inserts);
             $updates = ForeignKeyResolver::sortOperations($tableOrder, $updates);
 
-            // Deletes: child tables first (reverse order).
             $reverseOrder = array_reverse($tableOrder);
             $deletes = ForeignKeyResolver::sortOperations($reverseOrder, $deletes);
         }
 
-        // Order: inserts first, then updates, then deletes.
         foreach ($inserts as $op) {
-            $statements[] = self::generateInsert($op);
+            $statements[] = self::generateInsert($op, $q);
         }
 
         foreach ($updates as $op) {
-            $stmt = self::generateUpdate($op, $base);
+            $stmt = self::generateUpdate($op, $base, $q);
             if ($stmt !== null) {
                 $statements[] = $stmt;
             }
         }
 
         foreach ($deletes as $op) {
-            $statements[] = self::generateDelete($op, $base);
+            $statements[] = self::generateDelete($op, $base, $q);
         }
 
         return $statements;
     }
 
     /**
+     * @param \Closure(string): string $q Identifier quoter.
      * @return array{sql: string, params: list<mixed>}
      */
-    private static function generateInsert(MergeOperation $op): array
+    private static function generateInsert(MergeOperation $op, \Closure $q): array
     {
         $columns = array_keys($op->values);
+        $quotedCols = array_map($q, $columns);
         $placeholders = array_fill(0, count($columns), '?');
 
         $sql = sprintf(
-            'INSERT INTO `%s` (`%s`) VALUES (%s)',
-            $op->table,
-            implode('`, `', $columns),
+            'INSERT INTO %s (%s) VALUES (%s)',
+            $q($op->table),
+            implode(', ', $quotedCols),
             implode(', ', $placeholders),
         );
 
@@ -92,12 +93,10 @@ final class SqlGenerator
     }
 
     /**
-     * @return array{sql: string, params: list<mixed>}
+     * @param \Closure(string): string $q Identifier quoter.
+     * @return array{sql: string, params: list<mixed>}|null
      */
-    /**
-     * @return array{sql: string, params: list<mixed>}|null Null if no columns to update.
-     */
-    private static function generateUpdate(MergeOperation $op, ?Snapshot $base): ?array
+    private static function generateUpdate(MergeOperation $op, ?Snapshot $base, \Closure $q): ?array
     {
         $identityColumns = self::getIdentityColumns($op, $base);
 
@@ -108,25 +107,24 @@ final class SqlGenerator
             if (in_array($col, $identityColumns, true)) {
                 continue;
             }
-            $setClauses[] = "`{$col}` = ?";
+            $setClauses[] = $q($col) . ' = ?';
             $params[] = $val;
         }
 
-        // No non-identity columns to update: skip this operation.
         if ($setClauses === []) {
             return null;
         }
 
         $whereClauses = [];
-        $keyParts = \Merql\Snapshot\Snapshotter::decodeRowKey($op->rowKey);
+        $keyParts = Snapshotter::decodeRowKey($op->rowKey);
         foreach ($identityColumns as $i => $col) {
-            $whereClauses[] = "`{$col}` = ?";
+            $whereClauses[] = $q($col) . ' = ?';
             $params[] = $keyParts[$i] ?? '';
         }
 
         $sql = sprintf(
-            'UPDATE `%s` SET %s WHERE %s',
-            $op->table,
+            'UPDATE %s SET %s WHERE %s',
+            $q($op->table),
             implode(', ', $setClauses),
             implode(' AND ', $whereClauses),
         );
@@ -135,24 +133,25 @@ final class SqlGenerator
     }
 
     /**
+     * @param \Closure(string): string $q Identifier quoter.
      * @return array{sql: string, params: list<mixed>}
      */
-    private static function generateDelete(MergeOperation $op, ?Snapshot $base): array
+    private static function generateDelete(MergeOperation $op, ?Snapshot $base, \Closure $q): array
     {
         $identityColumns = self::getIdentityColumns($op, $base);
 
         $whereClauses = [];
         $params = [];
-        $keyParts = \Merql\Snapshot\Snapshotter::decodeRowKey($op->rowKey);
+        $keyParts = Snapshotter::decodeRowKey($op->rowKey);
 
         foreach ($identityColumns as $i => $col) {
-            $whereClauses[] = "`{$col}` = ?";
+            $whereClauses[] = $q($col) . ' = ?';
             $params[] = $keyParts[$i] ?? '';
         }
 
         $sql = sprintf(
-            'DELETE FROM `%s` WHERE %s',
-            $op->table,
+            'DELETE FROM %s WHERE %s',
+            $q($op->table),
             implode(' AND ', $whereClauses),
         );
 
@@ -171,10 +170,23 @@ final class SqlGenerator
             }
         }
 
-        // Fallback: parse from row key using value columns.
-        // If we have values, use the first column as PK heuristic.
         $columns = array_keys($op->values);
 
         return $columns !== [] ? [$columns[0]] : ['id'];
+    }
+
+    /**
+     * Build a quoting closure. Defaults to backtick (MySQL) when no driver.
+     *
+     * @return \Closure(string): string
+     */
+    private static function quoter(?Driver $driver): \Closure
+    {
+        if ($driver !== null) {
+            return fn(string $name) => $driver->quoteIdentifier($name);
+        }
+
+        // Default: backtick quoting (MySQL-compatible).
+        return fn(string $name) => '`' . str_replace('`', '``', $name) . '`';
     }
 }
