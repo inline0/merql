@@ -66,7 +66,7 @@ final class ConflictResolver
      * Build column value patches from update_update conflicts.
      *
      * @param list<Conflict> $conflicts
-     * @return array<string, array<string, mixed>>
+     * @return array<string, array<string, scalar|null>>
      */
     private static function buildColumnPatches(array $conflicts, bool $useOurs): array
     {
@@ -76,10 +76,14 @@ final class ConflictResolver
                 continue;
             }
 
+            $value = $useOurs ? $conflict->oursValue() : $conflict->theirsValue();
+            // Column-level conflicts carry scalar values; structural ones carry arrays.
+            if (is_array($value)) {
+                continue;
+            }
+
             $key = $conflict->table() . "\x00" . $conflict->rowKey();
-            $patches[$key][$conflict->column()] = $useOurs
-                ? $conflict->oursValue()
-                : $conflict->theirsValue();
+            $patches[$key][$conflict->column()] = $value;
         }
 
         return $patches;
@@ -94,20 +98,49 @@ final class ConflictResolver
 
         return match ($conflict->type()) {
             'update_delete' => $useOurs
-                ? self::op(MergeOperation::TYPE_UPDATE, $table, $rowKey, (array) $conflict->oursValue(), 'ours')
+                ? self::op(MergeOperation::TYPE_UPDATE, $table, $rowKey, self::asRow($conflict->oursValue()), 'ours')
                 : self::op(MergeOperation::TYPE_DELETE, $table, $rowKey, [], 'theirs'),
             'delete_update' => $useOurs
                 ? self::op(MergeOperation::TYPE_DELETE, $table, $rowKey, [], 'ours')
-                : self::op(MergeOperation::TYPE_UPDATE, $table, $rowKey, (array) $conflict->theirsValue(), 'theirs'),
+                : self::op(
+                    MergeOperation::TYPE_UPDATE,
+                    $table,
+                    $rowKey,
+                    self::asRow($conflict->theirsValue()),
+                    'theirs',
+                ),
             'insert_insert' => $useOurs
-                ? self::op(MergeOperation::TYPE_INSERT, $table, $rowKey, (array) $conflict->oursValue(), 'ours')
-                : self::op(MergeOperation::TYPE_INSERT, $table, $rowKey, (array) $conflict->theirsValue(), 'theirs'),
+                ? self::op(
+                    MergeOperation::TYPE_INSERT,
+                    $table,
+                    $rowKey,
+                    self::asRow($conflict->oursValue()),
+                    'ours',
+                )
+                : self::op(
+                    MergeOperation::TYPE_INSERT,
+                    $table,
+                    $rowKey,
+                    self::asRow($conflict->theirsValue()),
+                    'theirs',
+                ),
             default => null,
         };
     }
 
     /**
-     * @param array<string, mixed> $values
+     * Narrow a structural conflict value (which always carries a row array) to its row type.
+     *
+     * @param scalar|null|array<string, scalar|null> $value
+     * @return array<string, scalar|null>
+     */
+    private static function asRow(string|int|float|bool|array|null $value): array
+    {
+        return is_array($value) ? $value : [];
+    }
+
+    /**
+     * @param array<string, scalar|null> $values
      */
     private static function op(
         string $type,

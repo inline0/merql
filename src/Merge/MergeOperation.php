@@ -17,7 +17,7 @@ final readonly class MergeOperation
      * @param string $type insert|update|delete
      * @param string $table Table name.
      * @param string $rowKey Row identity key.
-     * @param array<string, mixed> $values Column values for the operation.
+     * @param array<string, scalar|null> $values Column values for the operation.
      * @param string $source "ours"|"theirs"|"merged"
      */
     public function __construct(

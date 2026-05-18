@@ -51,12 +51,19 @@ final class SqliteDriver implements Driver
 
             $parents = [];
             foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-                $parents[] = $row['table'];
+                if (!is_array($row)) {
+                    continue;
+                }
+                $parent = $row['table'] ?? null;
+                if (!is_string($parent)) {
+                    continue;
+                }
+                $parents[] = $parent;
             }
 
-            $parents = array_unique($parents);
+            $parents = array_values(array_unique($parents));
             if ($parents !== []) {
-                $deps[$table] = array_values($parents);
+                $deps[$table] = $parents;
             }
         }
 
@@ -80,7 +87,15 @@ final class SqliteDriver implements Driver
 
         $columns = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $columns[$row['name']] = strtolower($row['type'] ?: 'text');
+            if (!is_array($row)) {
+                continue;
+            }
+            $name = $row['name'] ?? null;
+            $type = $row['type'] ?? null;
+            if (!is_string($name)) {
+                continue;
+            }
+            $columns[$name] = strtolower(is_string($type) && $type !== '' ? $type : 'text');
         }
 
         return $columns;
@@ -98,8 +113,17 @@ final class SqliteDriver implements Driver
 
         $pkColumns = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            if ((int) $row['pk'] > 0) {
-                $pkColumns[(int) $row['pk']] = $row['name'];
+            if (!is_array($row)) {
+                continue;
+            }
+            $pk = $row['pk'] ?? null;
+            $name = $row['name'] ?? null;
+            if (!is_numeric($pk) || !is_string($name)) {
+                continue;
+            }
+            $pkOrder = (int) $pk;
+            if ($pkOrder > 0) {
+                $pkColumns[$pkOrder] = $name;
             }
         }
 
@@ -120,7 +144,11 @@ final class SqliteDriver implements Driver
 
         $uniqueKeys = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $index) {
-            if ((int) $index['unique'] !== 1) {
+            if (!is_array($index)) {
+                continue;
+            }
+            $unique = $index['unique'] ?? null;
+            if (!is_numeric($unique) || (int) $unique !== 1) {
                 continue;
             }
 
@@ -128,14 +156,26 @@ final class SqliteDriver implements Driver
                 continue;
             }
 
-            $colStmt = $pdo->query("PRAGMA index_info(" . $this->quoteIdentifier($index['name']) . ")");
+            $indexName = $index['name'] ?? null;
+            if (!is_string($indexName)) {
+                continue;
+            }
+
+            $colStmt = $pdo->query("PRAGMA index_info(" . $this->quoteIdentifier($indexName) . ")");
             if ($colStmt === false) {
                 continue;
             }
 
             $cols = [];
             foreach ($colStmt->fetchAll(PDO::FETCH_ASSOC) as $col) {
-                $cols[] = $col['name'];
+                if (!is_array($col)) {
+                    continue;
+                }
+                $colName = $col['name'] ?? null;
+                if (!is_string($colName)) {
+                    continue;
+                }
+                $cols[] = $colName;
             }
 
             if ($cols !== []) {

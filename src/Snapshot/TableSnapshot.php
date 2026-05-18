@@ -14,7 +14,7 @@ final readonly class TableSnapshot
     /**
      * @param TableSchema $schema Table structure.
      * @param array<int|string, string> $fingerprints Row identity key to fingerprint hash.
-     * @param array<int|string, array<string, mixed>> $rows Row identity key to column data.
+     * @param array<int|string, array<string, scalar|null>> $rows Row identity key to column data.
      * @param list<string> $identityColumns Columns used for row identity.
      */
     public function __construct(
@@ -32,7 +32,7 @@ final readonly class TableSnapshot
     }
 
     /**
-     * @return array<string, mixed>|null
+     * @return array<string, scalar|null>|null
      */
     public function getRow(string $key): ?array
     {

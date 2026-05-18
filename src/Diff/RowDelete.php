@@ -12,7 +12,7 @@ final readonly class RowDelete
     /**
      * @param string $table Table name.
      * @param string $rowKey Row identity key.
-     * @param array<string, mixed> $oldValues Column values before deletion.
+     * @param array<string, scalar|null> $oldValues Column values before deletion.
      */
     public function __construct(
         public string $table,

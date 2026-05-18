@@ -19,7 +19,7 @@ final class SqlGenerator
      * Generate SQL statements for all operations.
      *
      * @param array<string, list<string>> $fkDependencies FK dependency map (child to parents).
-     * @return list<array{sql: string, params: list<mixed>}>
+     * @return list<array{sql: string, params: list<scalar|null>}>
      */
     public static function generate(
         MergeResult $result,
@@ -75,7 +75,7 @@ final class SqlGenerator
 
     /**
      * @param \Closure(string): string $q Identifier quoter.
-     * @return array{sql: string, params: list<mixed>}
+     * @return array{sql: string, params: list<scalar|null>}
      */
     private static function generateInsert(MergeOperation $op, \Closure $q): array
     {
@@ -95,7 +95,7 @@ final class SqlGenerator
 
     /**
      * @param \Closure(string): string $q Identifier quoter.
-     * @return array{sql: string, params: list<mixed>}|null
+     * @return array{sql: string, params: list<scalar|null>}|null
      */
     private static function generateUpdate(MergeOperation $op, ?Snapshot $base, \Closure $q): ?array
     {
@@ -135,7 +135,7 @@ final class SqlGenerator
 
     /**
      * @param \Closure(string): string $q Identifier quoter.
-     * @return array{sql: string, params: list<mixed>}
+     * @return array{sql: string, params: list<scalar|null>}
      */
     private static function generateDelete(MergeOperation $op, ?Snapshot $base, \Closure $q): array
     {

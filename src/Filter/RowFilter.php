@@ -9,7 +9,7 @@ namespace Merql\Filter;
  */
 final class RowFilter
 {
-    /** @var \Closure(string, array<string, mixed>): bool */
+    /** @var \Closure(string, array<string, scalar|null>): bool */
     private \Closure $predicate;
 
     private function __construct(\Closure $predicate)
@@ -20,7 +20,7 @@ final class RowFilter
     /**
      * Create a row filter from a predicate.
      *
-     * @param callable(string, array<string, mixed>): bool $predicate
+     * @param callable(string, array<string, scalar|null>): bool $predicate
      *     Receives table name and row data, returns true to include the row.
      */
     public static function create(callable $predicate): self
@@ -29,7 +29,7 @@ final class RowFilter
     }
 
     /**
-     * @param array<string, mixed> $row
+     * @param array<string, scalar|null> $row
      */
     public function shouldInclude(string $table, array $row): bool
     {

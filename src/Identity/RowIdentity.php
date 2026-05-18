@@ -12,7 +12,7 @@ interface RowIdentity
     /**
      * Build a unique key for a row.
      *
-     * @param array<string, mixed> $row Column values.
+     * @param array<string, scalar|null> $row Column values.
      * @return string Unique key identifying this row.
      */
     public function key(array $row): string;

@@ -19,8 +19,11 @@ namespace Merql\CellMerge;
  */
 final class JsonCellMerger implements CellMerger
 {
-    public function merge(mixed $base, mixed $ours, mixed $theirs): CellMergeResult
-    {
+    public function merge(
+        string|int|float|bool|null $base,
+        string|int|float|bool|null $ours,
+        string|int|float|bool|null $theirs,
+    ): CellMergeResult {
         $baseObj = self::decode($base);
         $oursObj = self::decode($ours);
         $theirsObj = self::decode($theirs);
@@ -98,6 +101,10 @@ final class JsonCellMerger implements CellMerger
     private static function decode(mixed $value): mixed
     {
         if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (!is_scalar($value)) {
             return null;
         }
 

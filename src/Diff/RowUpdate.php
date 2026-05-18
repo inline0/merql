@@ -13,7 +13,7 @@ final readonly class RowUpdate
      * @param string $table Table name.
      * @param string $rowKey Row identity key.
      * @param list<ColumnDiff> $columnDiffs Per-column changes.
-     * @param array<string, mixed> $fullRow Complete current row data.
+     * @param array<string, scalar|null> $fullRow Complete current row data.
      */
     public function __construct(
         public string $table,
