@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.0] - 2026-05-19
+
+### Changed
+
+- PHPStan level raised from 8 to 10. Row data is now typed as `array<string, scalar|null>` end-to-end, matching what `PDO::FETCH_ASSOC` actually returns.
+- `CellMerger::merge()` signature narrowed from `mixed` to `string|int|float|bool|null` for `$base`, `$ours`, `$theirs`. **Breaking** for custom `CellMerger` implementations.
+- `CellMergeResult::resolved()` / `::conflict()` and constructor narrowed `mixed` to `string|int|float|bool|null`.
+- `ColumnDiff` constructor narrowed `mixed` values to `string|int|float|bool|null`.
+- `Conflict` value parameters and accessors narrowed to `scalar|null|array<string, scalar|null>`.
+- PDO boundaries (`MysqlDriver`, `SqliteDriver`, `DriverFactory`) now validate row shapes at runtime instead of blind-casting.
+- `SnapshotStore::deserialize()` validates JSON structure and per-field types before constructing snapshots.
+- PHPUnit bumped to ^13.1 with the 13.x config schema.
+
 ## [0.1.0] - 2026-04-14
 
 ### Added
