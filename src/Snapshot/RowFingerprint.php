@@ -12,7 +12,7 @@ final class RowFingerprint
     /**
      * Compute a fingerprint for a row's data.
      *
-     * @param array<string, mixed> $data Column name to value mapping.
+     * @param array<string, scalar|null> $data Column name to value mapping.
      */
     public static function compute(array $data, string $algo = 'sha256'): string
     {
@@ -25,7 +25,7 @@ final class RowFingerprint
      * Normalize row data to a deterministic string representation.
      * NULL is represented distinctly from empty string or "null".
      *
-     * @param array<string, mixed> $data
+     * @param array<string, scalar|null> $data
      */
     private static function normalize(array $data): string
     {

@@ -28,8 +28,8 @@ final readonly class ColumnFilter
     /**
      * Remove ignored columns from a row.
      *
-     * @param array<string, mixed> $row
-     * @return array<string, mixed>
+     * @param array<string, scalar|null> $row
+     * @return array<string, scalar|null>
      */
     public function applyToRow(array $row): array
     {

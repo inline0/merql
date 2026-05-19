@@ -88,7 +88,9 @@ final class Snapshotter
         $fingerprints = [];
         $rows = [];
 
-        foreach ($allRows as $row) {
+        foreach ($allRows as $rawRow) {
+            $row = self::normalizeRow($rawRow);
+
             if ($rowFilter !== null && !$rowFilter->shouldInclude($tableName, $row)) {
                 continue;
             }
@@ -107,6 +109,28 @@ final class Snapshotter
         return new TableSnapshot($schema, $fingerprints, $rows, $identityColumns);
     }
 
+    /**
+     * Normalize a PDO::FETCH_ASSOC row to scalar|null values.
+     *
+     * @return array<string, scalar|null>
+     */
+    private static function normalizeRow(mixed $rawRow): array
+    {
+        if (!is_array($rawRow)) {
+            return [];
+        }
+
+        $row = [];
+        foreach ($rawRow as $col => $val) {
+            if (!is_string($col)) {
+                continue;
+            }
+            $row[$col] = is_scalar($val) || $val === null ? $val : null;
+        }
+
+        return $row;
+    }
+
     private static function buildTableSnapshot(TableSnapshotData $data): TableSnapshot
     {
         $fingerprints = [];
@@ -122,7 +146,7 @@ final class Snapshotter
     }
 
     /**
-     * @param array<string, mixed> $row
+     * @param array<string, scalar|null> $row
      * @param list<string> $identityColumns
      */
     public static function buildRowKey(array $row, array $identityColumns): string

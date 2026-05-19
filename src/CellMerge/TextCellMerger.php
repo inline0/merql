@@ -12,8 +12,11 @@ use Pitmaster\Merge\ThreeWayMerge;
  */
 final class TextCellMerger implements CellMerger
 {
-    public function merge(mixed $base, mixed $ours, mixed $theirs): CellMergeResult
-    {
+    public function merge(
+        string|int|float|bool|null $base,
+        string|int|float|bool|null $ours,
+        string|int|float|bool|null $theirs,
+    ): CellMergeResult {
         $result = ThreeWayMerge::merge(
             (string) ($base ?? ''),
             (string) ($ours ?? ''),

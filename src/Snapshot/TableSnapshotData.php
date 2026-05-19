@@ -13,7 +13,7 @@ final readonly class TableSnapshotData
 {
     /**
      * @param TableSchema $schema Table structure.
-     * @param list<array<string, mixed>> $rows Row data.
+     * @param list<array<string, scalar|null>> $rows Row data.
      * @param list<string> $identityColumns Columns used for row identity.
      */
     public function __construct(

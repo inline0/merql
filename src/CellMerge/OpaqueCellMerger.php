@@ -10,8 +10,11 @@ namespace Merql\CellMerge;
  */
 final class OpaqueCellMerger implements CellMerger
 {
-    public function merge(mixed $base, mixed $ours, mixed $theirs): CellMergeResult
-    {
+    public function merge(
+        string|int|float|bool|null $base,
+        string|int|float|bool|null $ours,
+        string|int|float|bool|null $theirs,
+    ): CellMergeResult {
         return CellMergeResult::conflict($ours);
     }
 }

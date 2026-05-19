@@ -55,7 +55,15 @@ final class MysqlDriver implements Driver
 
         $deps = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $deps[$row['TABLE_NAME']][] = $row['REFERENCED_TABLE_NAME'];
+            if (!is_array($row)) {
+                continue;
+            }
+            $tableName = $row['TABLE_NAME'] ?? null;
+            $referenced = $row['REFERENCED_TABLE_NAME'] ?? null;
+            if (!is_string($tableName) || !is_string($referenced)) {
+                continue;
+            }
+            $deps[$tableName][] = $referenced;
         }
 
         return $deps;
@@ -79,7 +87,15 @@ final class MysqlDriver implements Driver
 
         $columns = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $columns[$row['COLUMN_NAME']] = $row['COLUMN_TYPE'];
+            if (!is_array($row)) {
+                continue;
+            }
+            $name = $row['COLUMN_NAME'] ?? null;
+            $type = $row['COLUMN_TYPE'] ?? null;
+            if (!is_string($name) || !is_string($type)) {
+                continue;
+            }
+            $columns[$name] = $type;
         }
 
         return $columns;
@@ -125,7 +141,15 @@ final class MysqlDriver implements Driver
 
         $keys = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $keys[$row['CONSTRAINT_NAME']][] = $row['COLUMN_NAME'];
+            if (!is_array($row)) {
+                continue;
+            }
+            $constraint = $row['CONSTRAINT_NAME'] ?? null;
+            $column = $row['COLUMN_NAME'] ?? null;
+            if (!is_string($constraint) || !is_string($column)) {
+                continue;
+            }
+            $keys[$constraint][] = $column;
         }
 
         return array_values(array_map('array_values', $keys));

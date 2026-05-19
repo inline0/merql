@@ -92,8 +92,8 @@ final class Differ
     }
 
     /**
-     * @param array<string, mixed> $baseRow
-     * @param array<string, mixed> $currentRow
+     * @param array<string, scalar|null> $baseRow
+     * @param array<string, scalar|null> $currentRow
      * @return list<ColumnDiff>
      */
     private function diffColumns(array $baseRow, array $currentRow): array
@@ -116,7 +116,7 @@ final class Differ
     /**
      * Compare two values, treating NULL as a distinct value.
      */
-    public static function valuesEqual(mixed $a, mixed $b): bool
+    public static function valuesEqual(string|int|float|bool|null $a, string|int|float|bool|null $b): bool
     {
         if ($a === null && $b === null) {
             return true;

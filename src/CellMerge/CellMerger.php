@@ -19,5 +19,9 @@ interface CellMerger
      * Return CellMergeResult::resolved() if the merge is clean,
      * or CellMergeResult::conflict() if it cannot be resolved.
      */
-    public function merge(mixed $base, mixed $ours, mixed $theirs): CellMergeResult;
+    public function merge(
+        string|int|float|bool|null $base,
+        string|int|float|bool|null $ours,
+        string|int|float|bool|null $theirs,
+    ): CellMergeResult;
 }

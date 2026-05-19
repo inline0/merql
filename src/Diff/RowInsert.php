@@ -12,7 +12,7 @@ final readonly class RowInsert
     /**
      * @param string $table Table name.
      * @param string $rowKey Row identity key.
-     * @param array<string, mixed> $values All column values.
+     * @param array<string, scalar|null> $values All column values.
      */
     public function __construct(
         public string $table,

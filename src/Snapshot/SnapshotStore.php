@@ -52,6 +52,10 @@ final class SnapshotStore
 
         $data = json_decode($contents, true, 512, JSON_THROW_ON_ERROR);
 
+        if (!is_array($data)) {
+            throw new SnapshotException("Snapshot '{$name}' is malformed: expected object at root.");
+        }
+
         return self::deserialize($name, $data);
     }
 
@@ -108,27 +112,164 @@ final class SnapshotStore
     }
 
     /**
-     * @param array<string, mixed> $data
+     * @param array<int|string, mixed> $data
      */
     private static function deserialize(string $name, array $data): Snapshot
     {
-        $tables = [];
-        foreach ($data['tables'] as $tableName => $tableData) {
-            $schema = new TableSchema(
-                $tableData['schema']['name'],
-                $tableData['schema']['columns'],
-                $tableData['schema']['primaryKey'],
-                $tableData['schema']['uniqueKeys'],
-            );
+        $tablesData = $data['tables'] ?? null;
+        if (!is_array($tablesData)) {
+            throw new SnapshotException("Snapshot '{$name}' is malformed: missing 'tables'.");
+        }
 
-            $tables[$tableName] = new TableSnapshot(
-                $schema,
-                $tableData['fingerprints'],
-                $tableData['rows'],
-                $tableData['identityColumns'],
-            );
+        $tables = [];
+        foreach ($tablesData as $tableName => $tableData) {
+            if (!is_string($tableName) || !is_array($tableData)) {
+                continue;
+            }
+            $tables[$tableName] = self::deserializeTable($name, $tableName, $tableData);
         }
 
         return new Snapshot($name, $tables);
+    }
+
+    /**
+     * @param array<int|string, mixed> $tableData
+     */
+    private static function deserializeTable(string $snapshot, string $tableName, array $tableData): TableSnapshot
+    {
+        $schemaData = $tableData['schema'] ?? null;
+        if (!is_array($schemaData)) {
+            throw new SnapshotException(
+                "Snapshot '{$snapshot}' table '{$tableName}' is malformed: missing 'schema'.",
+            );
+        }
+
+        $schemaName = $schemaData['name'] ?? null;
+        $schemaColumns = $schemaData['columns'] ?? null;
+        $schemaPrimaryKey = $schemaData['primaryKey'] ?? null;
+        $schemaUniqueKeys = $schemaData['uniqueKeys'] ?? null;
+
+        if (
+            !is_string($schemaName)
+            || !is_array($schemaColumns)
+            || !is_array($schemaPrimaryKey)
+            || !is_array($schemaUniqueKeys)
+        ) {
+            throw new SnapshotException(
+                "Snapshot '{$snapshot}' table '{$tableName}' has invalid schema fields.",
+            );
+        }
+
+        $schema = new TableSchema(
+            $schemaName,
+            self::stringMap($schemaColumns),
+            self::stringList($schemaPrimaryKey),
+            self::stringListList($schemaUniqueKeys),
+        );
+
+        $fingerprints = $tableData['fingerprints'] ?? null;
+        $rows = $tableData['rows'] ?? null;
+        $identityColumns = $tableData['identityColumns'] ?? null;
+
+        if (!is_array($fingerprints) || !is_array($rows) || !is_array($identityColumns)) {
+            throw new SnapshotException(
+                "Snapshot '{$snapshot}' table '{$tableName}' has invalid row data.",
+            );
+        }
+
+        return new TableSnapshot(
+            $schema,
+            self::fingerprintMap($fingerprints),
+            self::rowMap($rows),
+            self::stringList($identityColumns),
+        );
+    }
+
+    /**
+     * @param array<int|string, mixed> $raw
+     * @return array<string, string>
+     */
+    private static function stringMap(array $raw): array
+    {
+        $out = [];
+        foreach ($raw as $k => $v) {
+            if (is_string($k) && is_string($v)) {
+                $out[$k] = $v;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param array<int|string, mixed> $raw
+     * @return list<string>
+     */
+    private static function stringList(array $raw): array
+    {
+        $out = [];
+        foreach ($raw as $v) {
+            if (is_string($v)) {
+                $out[] = $v;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param array<int|string, mixed> $raw
+     * @return list<list<string>>
+     */
+    private static function stringListList(array $raw): array
+    {
+        $out = [];
+        foreach ($raw as $inner) {
+            if (is_array($inner)) {
+                $out[] = self::stringList($inner);
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param array<int|string, mixed> $raw
+     * @return array<int|string, string>
+     */
+    private static function fingerprintMap(array $raw): array
+    {
+        $out = [];
+        foreach ($raw as $k => $v) {
+            if (is_string($v)) {
+                $out[$k] = $v;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param array<int|string, mixed> $raw
+     * @return array<int|string, array<string, scalar|null>>
+     */
+    private static function rowMap(array $raw): array
+    {
+        $out = [];
+        foreach ($raw as $k => $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $rowOut = [];
+            foreach ($row as $col => $val) {
+                if (!is_string($col)) {
+                    continue;
+                }
+                $rowOut[$col] = is_scalar($val) || $val === null ? $val : null;
+            }
+            $out[$k] = $rowOut;
+        }
+
+        return $out;
     }
 }

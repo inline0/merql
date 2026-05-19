@@ -9,14 +9,19 @@ namespace Merql\Merge;
  */
 final readonly class Conflict
 {
+    /**
+     * @param scalar|null|array<string, scalar|null> $oursValue
+     * @param scalar|null|array<string, scalar|null> $theirsValue
+     * @param scalar|null|array<string, scalar|null> $baseValue
+     */
     public function __construct(
         private string $table,
         private string $rowKey,
         private string $type,
         private ?string $column = null,
-        private mixed $oursValue = null,
-        private mixed $theirsValue = null,
-        private mixed $baseValue = null,
+        private string|int|float|bool|array|null $oursValue = null,
+        private string|int|float|bool|array|null $theirsValue = null,
+        private string|int|float|bool|array|null $baseValue = null,
     ) {
     }
 
@@ -41,17 +46,26 @@ final readonly class Conflict
         return $this->column;
     }
 
-    public function oursValue(): mixed
+    /**
+     * @return scalar|null|array<string, scalar|null>
+     */
+    public function oursValue(): string|int|float|bool|array|null
     {
         return $this->oursValue;
     }
 
-    public function theirsValue(): mixed
+    /**
+     * @return scalar|null|array<string, scalar|null>
+     */
+    public function theirsValue(): string|int|float|bool|array|null
     {
         return $this->theirsValue;
     }
 
-    public function baseValue(): mixed
+    /**
+     * @return scalar|null|array<string, scalar|null>
+     */
+    public function baseValue(): string|int|float|bool|array|null
     {
         return $this->baseValue;
     }

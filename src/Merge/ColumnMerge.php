@@ -15,11 +15,11 @@ final class ColumnMerge
     /**
      * Merge two versions of a row at the column level.
      *
-     * @param array<string, mixed> $base Base row data.
-     * @param array<string, mixed> $ours Our version of the row.
-     * @param array<string, mixed> $theirs Their version of the row.
+     * @param array<string, scalar|null> $base Base row data.
+     * @param array<string, scalar|null> $ours Our version of the row.
+     * @param array<string, scalar|null> $theirs Their version of the row.
      * @param array<string, string> $columnTypes Column name to type mapping (for cell merger lookup).
-     * @return array{values: array<string, mixed>, conflicts: list<Conflict>}
+     * @return array{values: array<string, scalar|null>, conflicts: list<Conflict>}
      */
     public static function merge(
         string $table,

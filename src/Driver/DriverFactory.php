@@ -36,6 +36,10 @@ final class DriverFactory
     {
         $pdoDriver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
 
+        if (!is_string($pdoDriver)) {
+            throw new \RuntimeException('Unable to determine PDO driver name.');
+        }
+
         $class = self::$drivers[$pdoDriver] ?? null;
         if ($class === null) {
             throw new \RuntimeException("Unsupported database driver: {$pdoDriver}");

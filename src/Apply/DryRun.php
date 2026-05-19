@@ -43,7 +43,7 @@ final class DryRun
                 return "'" . str_replace(
                     ['\\', "'", "\0", "\n", "\r"],
                     ['\\\\', "''", '\\0', '\\n', '\\r'],
-                    (string) $val,
+                    is_bool($val) ? ($val ? '1' : '0') : (string) $val,
                 ) . "'";
             }, $sql);
             $output[] = (string) $replaced;

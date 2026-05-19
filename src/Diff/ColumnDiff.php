@@ -11,8 +11,8 @@ final readonly class ColumnDiff
 {
     public function __construct(
         public string $column,
-        public mixed $oldValue,
-        public mixed $newValue,
+        public string|int|float|bool|null $oldValue,
+        public string|int|float|bool|null $newValue,
     ) {
     }
 }
