@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.3.0] - 2026-06-06
+
+### Added
+
+- UI-ready merge plans with stable operation IDs, change group IDs, summaries,
+  conflict payloads, metadata, hashes, and JSON serialization.
+- Change group and operation selections for staging a subset of merge
+  operations before apply.
+- Selected merge result generation for applying only reviewed operations from a
+  merge plan.
+- Rollback plan generation, rollback JSON serialization, drift detection, and
+  inverse operation apply.
+- Guarded SQL generation and guarded transactional apply with optimistic
+  live-row preconditions.
+- `Snapshotter::captureAliased()` for capturing physical table names under
+  canonical names.
+- `IdentityRule`, `IdentityRuleSet`, and `IdentityConflict` for explicit table
+  identity rules and ambiguous identity detection.
+- Public documentation for merge plans, identity rules, selected apply,
+  guarded apply, rollback artifacts, and aliased snapshots.
+- Merge primitive coverage verification for plan, rollback, guarded apply, and
+  identity-rule code paths.
+
+### Changed
+
+- `Snapshotter` now accepts an optional `IdentityRuleSet` and rejects ambiguous
+  captured row identity keys instead of overwriting rows.
+- `Merql::init()` now accepts optional driver and identity rule arguments.
+- README examples now cover staged merge plans, guarded apply, rollback
+  artifacts, identity rules, and canonical table capture.
+
 ## [0.2.0] - 2026-05-19
 
 ### Changed

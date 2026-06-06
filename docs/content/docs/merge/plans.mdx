@@ -1,0 +1,139 @@
+---
+title: Merge Plans
+description: Build UI-ready merge plans with stable operation IDs, change groups, selections, and JSON serialization.
+---
+
+# Merge Plans
+
+A `MergeResult` is the executable output of a merge. A `MergePlan` is the
+inspectable form of that output. Use it when an application needs to show,
+stage, serialize, or selectively apply database changes before writing to the
+target database.
+
+```php
+use Merql\Merql;
+$plan = Merql::plan(
+    id: 'plan-2026-06-06',
+    base: 'base',
+    ours: 'ours',
+    theirs: 'theirs',
+    metadata: ['sandbox_id' => 'ow_123'],
+);
+```
+
+The plan contains:
+
+- the snapshot names used to build it,
+- a summary of operations, conflicts, schema mismatches, tables, and groups,
+- stable operation IDs,
+- stable change group IDs,
+- row identity columns and identity values,
+- base, ours, theirs, and result row values for each operation,
+- optional host application metadata,
+- a plan hash,
+- a schema version.
+
+## Stable IDs
+
+Operation IDs are deterministic for the same operation contents. They are
+derived from table name, row key, operation type, operation source, changed
+columns, and result values.
+
+Change group IDs are deterministic for the same group contents. The default
+builder creates one operation group per operation. Host applications can build
+larger domain-specific groups from the operation list and still serialize them
+with the same DTO shape.
+
+```php
+foreach ($plan->changeGroups as $group) {
+    echo $group->id . ': ' . implode(', ', $group->operationIds);
+}
+```
+
+## Operation Shape
+
+Each `MergePlanOperation` keeps enough context for review and rollback.
+
+```php
+$operation = $plan->operations[0];
+
+$operation->id;              // stable operation ID
+$operation->type;            // insert, update, delete
+$operation->table;           // canonical table name
+$operation->rowKey;          // encoded identity key
+$operation->identityColumns; // columns used for identity
+$operation->identityValues;  // decoded identity values
+$operation->source;          // ours, theirs, or merged
+$operation->baseRow;         // row in base snapshot, or null
+$operation->oursRow;         // row in ours snapshot, or null
+$operation->theirsRow;       // row in theirs snapshot, or null
+$operation->resultValues;    // values the merge would write
+$operation->changedColumns;  // changed result columns
+```
+
+## Selections
+
+Use `ChangeGroupSelection` when the UI stages groups. Convert it to an
+`OperationSelection` when applying or generating rollback artifacts.
+
+```php
+use Merql\Plan\ChangeGroupSelection;
+use Merql\Plan\SelectedMergeResultFactory;
+use Merql\Snapshot\SnapshotStore;
+
+$selection = ChangeGroupSelection::fromIds([
+    $plan->changeGroups[0]->id,
+]);
+
+$operationSelection = $selection->toOperationSelection($plan);
+
+$selectedResult = (new SelectedMergeResultFactory())->fromOperationSelection(
+    $plan,
+    $operationSelection,
+    SnapshotStore::load($plan->baseSnapshot),
+);
+```
+
+The selected result is a clean `MergeResult` that contains only selected
+operations. It can be passed to `Merql::apply()` or `Merql::applyGuarded()`.
+
+## Serialization
+
+Merge plans and selections have stable JSON serialization. Store the serialized
+plan when a later apply step must use the exact reviewed operation set.
+
+```php
+use Merql\Plan\ChangeGroupSelection;
+use Merql\Plan\MergePlanSerializer;
+
+$json = MergePlanSerializer::toJson($plan);
+$restored = MergePlanSerializer::fromJson($json);
+
+$selectionJson = json_encode($selection->toArray(), JSON_THROW_ON_ERROR);
+$selection = ChangeGroupSelection::fromArray(
+    json_decode($selectionJson, true, flags: JSON_THROW_ON_ERROR),
+);
+```
+
+## Aliased Snapshots
+
+Merge plans use canonical table names. If physical table names differ between
+environments, capture them under the same canonical name before planning.
+
+```php
+use Merql\Snapshot\SnapshotStore;
+use Merql\Snapshot\Snapshotter;
+
+$snapshotter = new Snapshotter($pdo);
+
+SnapshotStore::save($snapshotter->captureAliased('live', [
+    'wp_posts' => 'wp_posts',
+]));
+
+SnapshotStore::save($snapshotter->captureAliased('sandbox', [
+    'wp_onumia_abc_posts' => 'wp_posts',
+]));
+```
+
+The schema stored in the snapshot uses the canonical table name while preserving
+the physical table's columns, keys, identity columns, row keys, and filters.

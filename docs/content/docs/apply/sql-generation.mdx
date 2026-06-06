@@ -20,6 +20,19 @@ foreach ($statements as $stmt) {
 }
 ```
 
+Use `generateGuarded()` when a reviewed merge plan should only apply if live
+rows still match an expected snapshot.
+
+```php
+use Merql\Apply\SqlGenerator;
+use Merql\Snapshot\SnapshotStore;
+
+$statements = SqlGenerator::generateGuarded(
+    $selectedResult,
+    SnapshotStore::load('theirs'),
+);
+```
+
 ## Statement format
 
 Each statement is an associative array with two keys:
@@ -103,6 +116,30 @@ DELETE FROM `posts` WHERE `id` = ?
 ```
 
 Only identity columns appear in the WHERE clause.
+
+### Guarded UPDATE
+
+Guarded updates include both identity clauses and expected live-row clauses.
+
+```sql
+UPDATE `posts` SET `title` = ? WHERE `id` = ? AND `status` = ?
+-- params: ['New Title', 42, 'draft']
+```
+
+If the row no longer has the expected `status`, the statement affects zero rows
+and guarded apply rolls back the transaction.
+
+### Guarded INSERT
+
+Guarded inserts use `NOT EXISTS` to avoid inserting into an identity that has
+appeared since the plan was created.
+
+```sql
+INSERT INTO `posts` (`id`, `title`) SELECT ?, ? WHERE NOT EXISTS (
+  SELECT 1 FROM `posts` WHERE `id` = ?
+)
+-- params: [42, 'New Post', 42]
+```
 
 ## NULL handling
 

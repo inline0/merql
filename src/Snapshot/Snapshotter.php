@@ -6,10 +6,11 @@ namespace Merql\Snapshot;
 
 use Merql\Driver\Driver;
 use Merql\Driver\DriverFactory;
+use Merql\Exceptions\SnapshotException;
 use Merql\Filter\ColumnFilter;
 use Merql\Filter\RowFilter;
 use Merql\Filter\TableFilter;
-use Merql\Schema\PrimaryKeyResolver;
+use Merql\Identity\IdentityRuleSet;
 use Merql\Schema\SchemaReader;
 use PDO;
 
@@ -24,6 +25,7 @@ final class Snapshotter
     public function __construct(
         private readonly PDO $pdo,
         ?Driver $driver = null,
+        private readonly ?IdentityRuleSet $identityRules = null,
     ) {
         $this->driver = $driver ?? DriverFactory::create($pdo);
         $this->schemaReader = new SchemaReader($pdo, $this->driver);
@@ -125,13 +127,15 @@ final class Snapshotter
                 $schema->uniqueKeys,
             );
         }
-        $identityColumns = PrimaryKeyResolver::resolve($schema);
+        $identityRule = ($this->identityRules ?? new IdentityRuleSet())->ruleFor($schema);
+        $identityColumns = $identityRule->columns;
 
         $stmt = $this->pdo->query($this->driver->selectAll($tableName));
         $allRows = $stmt !== false ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
 
         $fingerprints = [];
         $rows = [];
+        $identityCounts = [];
 
         foreach ($allRows as $rawRow) {
             $row = self::normalizeRow($rawRow);
@@ -142,6 +146,12 @@ final class Snapshotter
 
             // Build row key from unfiltered row to preserve identity columns.
             $key = self::buildRowKey($row, $identityColumns);
+            $identityCounts[$key] = ($identityCounts[$key] ?? 0) + 1;
+            if ($identityCounts[$key] > 1) {
+                throw new SnapshotException(
+                    "Snapshot identity for table '{$canonicalTableName}' is ambiguous for row key '{$key}'.",
+                );
+            }
 
             if ($columnFilter !== null) {
                 $row = $columnFilter->applyToRow($row);
@@ -183,6 +193,12 @@ final class Snapshotter
 
         foreach ($data->rows as $row) {
             $key = self::buildRowKey($row, $data->identityColumns);
+            if (array_key_exists($key, $rows)) {
+                throw new SnapshotException(
+                    "Snapshot identity for table '{$data->schema->name}' is ambiguous for row key '{$key}'.",
+                );
+            }
+
             $fingerprints[$key] = RowFingerprint::compute($row);
             $rows[$key] = $row;
         }

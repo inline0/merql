@@ -29,8 +29,12 @@ Merql is a pure PHP three-way database merge engine. It takes three database sta
 - Snapshot database state with row fingerprinting for fast change detection
 - Compute per-column changesets between any two snapshots
 - Three-way merge with column-level conflict resolution
+- UI-ready merge plans with stable operation and change group IDs
+- Selected operation apply for staging workflows
+- Rollback plan generation with drift checks
 - Cell-level merge for TEXT (line-by-line via Myers diff) and JSON (key-by-key) columns
 - Parameterized SQL generation with FK-aware ordering
+- Guarded apply with optimistic live-row preconditions
 - Pluggable database drivers for MySQL, SQLite, and any PDO-supported engine
 
 ## Quick Start
@@ -64,6 +68,68 @@ if ($result->isClean()) {
             . "ours={$conflict->oursValue()}, theirs={$conflict->theirsValue()}\n";
     }
 }
+```
+
+## Merge Plans And Rollback
+
+Use merge plans when a host application needs to inspect, stage, or selectively
+apply database changes before writing to the target database.
+
+```php
+use Merql\Plan\ChangeGroupSelection;
+use Merql\Plan\SelectedMergeResultFactory;
+use Merql\Rollback\RollbackPlanBuilder;
+use Merql\Snapshot\SnapshotStore;
+use Merql\Snapshot\Snapshotter;
+use Merql\Identity\IdentityRule;
+use Merql\Identity\IdentityRuleSet;
+
+$rules = new IdentityRuleSet([
+    'wp_options' => IdentityRule::natural(['option_name']),
+]);
+
+$snapshotter = new Snapshotter($pdo, identityRules: $rules);
+SnapshotStore::save($snapshotter->capture('base', ['wp_options']));
+SnapshotStore::save($snapshotter->capture('ours', ['wp_options']));
+SnapshotStore::save($snapshotter->capture('theirs', ['wp_options']));
+
+$plan = Merql::plan('plan-1', 'base', 'ours', 'theirs');
+
+$selection = ChangeGroupSelection::fromIds([
+    $plan->changeGroups[0]->id,
+]);
+
+$selected = (new SelectedMergeResultFactory())
+    ->fromChangeGroupSelection($plan, $selection, SnapshotStore::load('base'));
+
+$rollback = (new RollbackPlanBuilder())->build(
+    'rollback-1',
+    $plan,
+    $selection->toOperationSelection($plan),
+    liveBeforeRows: [
+        $plan->operations[0]->id => $plan->operations[0]->theirsRow,
+    ],
+);
+
+$applied = Merql::applyGuarded($selected, SnapshotStore::load('theirs'));
+```
+
+For prefixed or multi-environment tables, capture physical table names under a
+canonical name before merging:
+
+```php
+use Merql\Snapshot\SnapshotStore;
+use Merql\Snapshot\Snapshotter;
+use Merql\Identity\IdentityRule;
+use Merql\Identity\IdentityRuleSet;
+
+$snapshotter = new Snapshotter($pdo, identityRules: new IdentityRuleSet([
+    'wp_posts' => IdentityRule::primary(['ID']),
+]));
+
+SnapshotStore::save($snapshotter->captureAliased('sandbox', [
+    'wp_onumia_abcd_posts' => 'wp_posts',
+]));
 ```
 
 ## PHP API
@@ -151,10 +217,10 @@ npm run dev
 Topics covered:
 
 - Getting started, CLI reference, and PHP API
-- Three-way merge, column-level merge, and cell-level merge
+- Three-way merge, merge plans, column-level merge, and cell-level merge
 - Conflict detection and resolution
-- SQL generation, dry run, and database drivers
-- Row identity, filters, schema validation, and testing strategy
+- SQL generation, guarded apply, rollback, dry run, and database drivers
+- Row identity, identity rules, filters, schema validation, and testing strategy
 
 ## Testing
 
@@ -179,21 +245,22 @@ composer verify
 
 Current local verification baseline:
 
-- `195` PHPUnit tests (179 unit + 16 integration)
-- `420` assertions
+- `226` PHPUnit tests
+- `530` assertions
 - oracle regression summary `32/32`
 
 ## Features
 
 | Category | Features |
 |----------|----------|
-| Merge | three-way merge, two-way patch, column-level resolution, cell-level merge |
+| Merge | three-way merge, two-way patch, merge plans, selected apply, column-level resolution, cell-level merge |
 | Cell Merge | TEXT line-by-line (Myers diff via pitmaster), JSON key-by-key, custom mergers |
 | Conflicts | update/update, update/delete, delete/update, insert/insert, manual + auto resolve |
-| SQL | parameterized INSERT/UPDATE/DELETE, FK-aware ordering, dry-run preview, transactions |
+| SQL | parameterized INSERT/UPDATE/DELETE, FK-aware ordering, guarded apply, dry-run preview, transactions |
 | Databases | MySQL, SQLite built-in, extensible to any PDO driver |
-| Identity | primary key, natural key, content hash, composite key support |
-| Snapshot | row fingerprinting, JSON persistence, schema capture, table/column/row filters |
+| Identity | primary key, natural key, content hash, composite key support, identity rule registry |
+| Snapshot | row fingerprinting, JSON persistence, schema capture, aliased table capture, table/column/row filters |
+| Rollback | rollback plan generation, drift checks, inverse operation apply |
 | Validation | schema mismatch detection, snapshot name validation, path traversal protection |
 
 ## Architecture
@@ -204,6 +271,8 @@ src/
 ├── Snapshot/                  # Capture database state (fingerprints + data)
 ├── Diff/                      # Compare two snapshots (insert/update/delete changesets)
 ├── Merge/                     # Three-way merge with column-level conflict resolution
+├── Plan/                      # Merge plans, selections, selected merge results
+├── Rollback/                  # Rollback plans, drift checks, inverse apply
 ├── CellMerge/                 # Cell-level merge (text, JSON, custom)
 ├── Apply/                     # SQL generation, dry run, FK ordering, applier
 ├── Driver/                    # Database driver interface (MySQL, SQLite)

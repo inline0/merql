@@ -1,4 +1,4 @@
 {
   "title": "Apply",
-  "pages": ["sql-generation", "dry-run", "drivers"]
+  "pages": ["sql-generation", "guarded", "rollback", "dry-run", "drivers"]
 }

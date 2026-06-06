@@ -1,0 +1,111 @@
+---
+title: Rollback
+description: Generate rollback plans from selected merge operations, validate drift, and apply inverse operations.
+---
+
+# Rollback
+
+Rollback plans describe how to undo selected merge operations after they have
+been applied. They are built before apply, using the exact live rows that exist
+immediately before the write.
+
+Do not generate rollback from the base snapshot alone. Base is the common
+ancestor, not necessarily the live state being overwritten.
+
+## Build A Rollback Plan
+
+```php
+use Merql\Plan\ChangeGroupSelection;
+use Merql\Rollback\RollbackPlanBuilder;
+use Merql\Snapshot\SnapshotStore;
+
+$selection = ChangeGroupSelection::fromIds([$plan->changeGroups[0]->id]);
+$operationSelection = $selection->toOperationSelection($plan);
+$expectedLive = SnapshotStore::load($plan->theirsSnapshot);
+
+$liveBeforeRows = [];
+foreach ($plan->operations as $operation) {
+    if (!$operationSelection->contains($operation->id)) {
+        continue;
+    }
+
+    $liveBeforeRows[$operation->id] = $expectedLive
+        ->getTable($operation->table)
+        ?->getRow($operation->rowKey);
+}
+
+$rollback = (new RollbackPlanBuilder())->build(
+    'rollback-1',
+    $plan,
+    $operationSelection,
+    $liveBeforeRows,
+    metadata: ['promotion_id' => 'promotion-1'],
+);
+```
+
+The plan stores:
+
+- the merge plan ID,
+- selected operation IDs,
+- touched tables,
+- inverse operations,
+- before rows,
+- expected after rows,
+- metadata,
+- a rollback hash,
+- a schema version.
+
+## Drift Check
+
+Before applying rollback, compare current live rows with the rollback plan's
+expected after rows. If any row has changed since promotion, abort by default.
+
+```php
+use Merql\Rollback\RollbackDrift;
+
+$currentRows = [
+    $operationId => $currentLiveRow,
+];
+
+$drifted = (new RollbackDrift())->driftedOperationIds($rollback, $currentRows);
+
+if ($drifted !== []) {
+    throw new RuntimeException('Rollback drifted: ' . implode(', ', $drifted));
+}
+```
+
+The drift check compares row fingerprints, so column order does not matter.
+
+## Apply Rollback
+
+When there is no drift, apply the inverse operations.
+
+```php
+use Merql\Rollback\RollbackPlanApplier;
+
+$applied = (new RollbackPlanApplier($pdo))->apply($rollback);
+
+if ($applied->hasErrors()) {
+    foreach ($applied->errors() as $error) {
+        echo $error . "\n";
+    }
+}
+```
+
+Rollback applies a normal `MergeResult` built from inverse operations. It runs in
+the same transactional applier path as ordinary merge application.
+
+## Serialization
+
+Persist rollback plans before applying the forward merge. That artifact is the
+durable basis for later rollback.
+
+```php
+use Merql\Rollback\RollbackPlanSerializer;
+
+$json = RollbackPlanSerializer::toJson($rollback);
+$restored = RollbackPlanSerializer::fromJson($json);
+```
+
+Applications should store the serialized plan with the operation that performed
+the live write, together with any host-specific audit metadata.

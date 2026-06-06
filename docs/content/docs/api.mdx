@@ -12,16 +12,22 @@ Full reference for all public classes and methods in merql.
 `Merql\Merql` is the static entry point for common operations. It wraps the lower-level classes and manages snapshot persistence automatically.
 
 ```php
-use Merql\Merql;
 use Merql\Connection;
+use Merql\Identity\IdentityRule;
+use Merql\Identity\IdentityRuleSet;
+use Merql\Merql;
 
 $pdo = Connection::sqlite(':memory:');
-Merql::init($pdo);
+Merql::init($pdo, identityRules: new IdentityRuleSet([
+    'options' => IdentityRule::natural(['option_name']),
+]));
 ```
 
-### `init(PDO $pdo): void`
+### `init(PDO $pdo, ?Driver $driver = null, ?IdentityRuleSet $identityRules = null): void`
 
-Initialize the facade with a database connection. Must be called before `snapshot()` or `apply()`.
+Initialize the facade with a database connection. Must be called before
+`snapshot()` or `apply()`. Pass a driver to override auto-detection, or an
+identity rule set to override per-table row identity during snapshot capture.
 
 ### `snapshot(string $name, array $tables = []): Snapshot`
 
@@ -65,6 +71,30 @@ $applied = Merql::apply($result);
 echo $applied->rowsAffected();
 ```
 
+### `plan(string $id, string $base, string $ours, string $theirs, array $metadata = []): MergePlan`
+
+Build a UI-ready merge plan from three named snapshots. The plan includes stable
+operation IDs, change group IDs, operation context, conflicts, schema
+mismatches, a summary, metadata, and a plan hash.
+
+```php
+$plan = Merql::plan('plan-1', 'base', 'ours', 'theirs', [
+    'source' => 'review-ui',
+]);
+```
+
+### `applyGuarded(MergeResult $result, Snapshot $expectedLive): ApplyResult`
+
+Apply a clean merge result with optimistic live-row preconditions. Updates and
+deletes require current live rows to match `$expectedLive`; inserts require that
+the target identity does not already exist.
+
+```php
+use Merql\Snapshot\SnapshotStore;
+
+$applied = Merql::applyGuarded($selectedResult, SnapshotStore::load('theirs'));
+```
+
 ### `reset(): void`
 
 Clear the internal PDO and Snapshotter instances. Primarily used in tests to reset state between runs.
@@ -106,9 +136,11 @@ $pdo = Connection::fromDsn('mysql:host=localhost;dbname=app', 'root', 'pass');
 
 `Merql\Snapshot\Snapshotter` captures database state. Unlike the facade, it gives you full control over filters and does not auto-persist.
 
-### `__construct(PDO $pdo, ?Driver $driver = null)`
+### `__construct(PDO $pdo, ?Driver $driver = null, ?IdentityRuleSet $identityRules = null)`
 
-The driver is auto-detected from the PDO connection if not provided.
+The driver is auto-detected from the PDO connection if not provided. Pass an
+`IdentityRuleSet` when table-specific row identity should override schema
+defaults.
 
 ### `capture(string $name, array $tables = [], array $filters = []): Snapshot`
 
@@ -119,8 +151,15 @@ use Merql\Snapshot\Snapshotter;
 use Merql\Filter\TableFilter;
 use Merql\Filter\ColumnFilter;
 use Merql\Filter\RowFilter;
+use Merql\Identity\IdentityRule;
+use Merql\Identity\IdentityRuleSet;
 
-$snapshotter = new Snapshotter($pdo);
+$snapshotter = new Snapshotter(
+    $pdo,
+    identityRules: new IdentityRuleSet([
+        'wp_options' => IdentityRule::natural(['option_name']),
+    ]),
+);
 
 // All tables.
 $snapshot = $snapshotter->capture('full');
@@ -132,6 +171,21 @@ $snapshot = $snapshotter->capture('filtered', ['posts', 'users'], [
     RowFilter::create(fn(string $table, array $row) => $row['status'] !== 'trash'),
 ]);
 ```
+
+### `captureAliased(string $name, array $physicalToCanonicalTableMap, array $filters = []): Snapshot`
+
+Capture physical tables under canonical table names. Use this when the same
+logical table has different physical names across environments.
+
+```php
+$snapshot = $snapshotter->captureAliased('sandbox', [
+    'wp_onumia_abcd_posts' => 'wp_posts',
+    'wp_onumia_abcd_postmeta' => 'wp_postmeta',
+]);
+```
+
+The resulting snapshot stores canonical table names while preserving the
+physical table schema, configured identity columns, row keys, and filters.
 
 ### `fromData(string $name, array $tableData): Snapshot` (static)
 
@@ -205,6 +259,71 @@ $data = new TableSnapshotData(
     identityColumns: ['id'],
 );
 ```
+
+---
+
+## IdentityRule
+
+`Merql\Identity\IdentityRule` defines the columns used to build row keys.
+
+```php
+use Merql\Identity\IdentityRule;
+
+$primary = IdentityRule::primary(['id']);
+$natural = IdentityRule::natural(['option_name']);
+$composite = IdentityRule::composite(['object_id', 'term_taxonomy_id']);
+$content = IdentityRule::content(['name', 'value']);
+
+$key = $natural->key(['option_name' => 'siteurl']);
+// "siteurl"
+```
+
+### `forSchema(TableSchema $schema): IdentityRule` (static)
+
+Resolve the default identity rule from schema: primary key, first unique key,
+then content fallback.
+
+### `toArray(): array`
+
+Serialize the rule as `['type' => string, 'columns' => list<string>]`.
+
+### `fromArray(array $data): IdentityRule` (static)
+
+Hydrate a rule from serialized data.
+
+---
+
+## IdentityRuleSet
+
+`Merql\Identity\IdentityRuleSet` stores table-specific identity overrides.
+
+```php
+use Merql\Identity\IdentityRule;
+use Merql\Identity\IdentityRuleSet;
+
+$rules = new IdentityRuleSet([
+    'wp_options' => IdentityRule::natural(['option_name']),
+]);
+
+$rule = $rules->ruleFor($schema);
+```
+
+### `with(string $table, IdentityRule $rule): IdentityRuleSet`
+
+Return a new rule set with one table override added.
+
+### `conflictsFor(string $table, IdentityRule $rule, array $rows): array`
+
+Return `IdentityConflict` entries when multiple rows produce the same key for a
+rule.
+
+### `toArray(): array`
+
+Serialize table rules as a JSON-safe array.
+
+### `fromArray(array $data): IdentityRuleSet` (static)
+
+Hydrate a rule set from serialized data.
 
 ---
 
@@ -363,6 +482,67 @@ $result->baseSnapshot();           // ?Snapshot
 $result->schemaMismatches();       // list<SchemaException>
 $result->hasSchemaMismatches();    // bool
 ```
+
+---
+
+## MergePlan
+
+`Merql\Plan\MergePlan` is a serializable review model for a merge.
+
+```php
+$plan->id;                        // string
+$plan->baseSnapshot;              // string
+$plan->oursSnapshot;              // string
+$plan->theirsSnapshot;            // string
+$plan->summary;                   // MergePlanSummary
+$plan->changeGroups;              // list<MergePlanChangeGroup>
+$plan->operations;                // list<MergePlanOperation>
+$plan->conflicts;                 // list<MergePlanConflict>
+$plan->schemaMismatches;          // list<string>
+$plan->hash;                      // string
+$plan->metadata;                  // array<string, mixed>
+```
+
+Use `MergePlanSerializer::toJson()` and `::fromJson()` for stable JSON
+roundtrips.
+
+## Selections
+
+`ChangeGroupSelection` stores staged change group IDs. Convert it to an
+`OperationSelection` when building selected merge results or rollback plans.
+
+```php
+use Merql\Plan\ChangeGroupSelection;
+use Merql\Plan\SelectedMergeResultFactory;
+
+$selection = ChangeGroupSelection::fromIds([$groupId]);
+$operationSelection = $selection->toOperationSelection($plan);
+
+$selected = (new SelectedMergeResultFactory())
+    ->fromOperationSelection($plan, $operationSelection);
+```
+
+## RollbackPlan
+
+`Merql\Rollback\RollbackPlan` stores inverse operations and drift expectations
+for a selected apply.
+
+```php
+use Merql\Rollback\RollbackPlanBuilder;
+use Merql\Rollback\RollbackPlanSerializer;
+
+$rollback = (new RollbackPlanBuilder())->build(
+    'rollback-1',
+    $plan,
+    $operationSelection,
+    $liveBeforeRows,
+);
+
+$json = RollbackPlanSerializer::toJson($rollback);
+```
+
+Use `RollbackDrift` before applying rollback, then `RollbackPlanApplier` to run
+the inverse operations.
 
 ---
 

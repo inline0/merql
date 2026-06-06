@@ -9,6 +9,8 @@ use Merql\Apply\ApplyResult;
 use Merql\Apply\GuardedApplier;
 use Merql\Diff\Changeset;
 use Merql\Diff\Differ;
+use Merql\Driver\Driver;
+use Merql\Identity\IdentityRuleSet;
 use Merql\Merge\MergeResult;
 use Merql\Plan\MergePlan;
 use Merql\Plan\MergePlanBuilder;
@@ -26,10 +28,10 @@ final class Merql
     private static ?PDO $pdo = null;
     private static ?Snapshotter $snapshotter = null;
 
-    public static function init(PDO $pdo): void
+    public static function init(PDO $pdo, ?Driver $driver = null, ?IdentityRuleSet $identityRules = null): void
     {
         self::$pdo = $pdo;
-        self::$snapshotter = new Snapshotter($pdo);
+        self::$snapshotter = new Snapshotter($pdo, $driver, $identityRules);
     }
 
     /**

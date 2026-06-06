@@ -1,4 +1,4 @@
 {
   "title": "Merge",
-  "pages": ["three-way", "column-level", "cell-level", "conflicts"]
+  "pages": ["three-way", "plans", "column-level", "cell-level", "conflicts"]
 }

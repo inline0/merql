@@ -1,11 +1,11 @@
 ---
 title: Row Identity
-description: How merql determines which rows are "the same" across snapshots using primary keys, natural keys, and content hashes.
+description: How merql determines which rows are "the same" across snapshots using primary keys, natural keys, explicit rules, and content hashes.
 ---
 
 # Row Identity
 
-Row identity determines how merql matches rows across snapshots. When comparing base to ours, it needs to know that row X in base is the same logical row as row Y in ours, even if some column values changed. The identity strategy controls which columns form the row key.
+Row identity determines how merql matches rows across snapshots. When comparing base to ours, it needs to know that row X in base is the same logical row as row Y in ours, even if some column values changed. The identity rule controls which columns form the row key.
 
 ```php
 use Merql\Identity\PrimaryKeyIdentity;
@@ -79,23 +79,103 @@ $key = $identity->key(['name' => 'color', 'value' => 'blue']);
 
 Content hash identity has a limitation: if a row's content changes, its hash changes, so the row appears as a delete of the old hash and an insert of the new hash rather than an update. This is an inherent tradeoff when there are no stable identity columns.
 
-## PrimaryKeyResolver
+## IdentityRule
 
-The `PrimaryKeyResolver` automatically selects the identity columns for a table based on its schema:
+`IdentityRule` is the serializable identity configuration used by snapshot
+capture and merge plans.
 
 ```php
-use Merql\Schema\PrimaryKeyResolver;
+use Merql\Identity\IdentityRule;
 
-$columns = PrimaryKeyResolver::resolve($schema);
+$rule = IdentityRule::natural(['option_name']);
+$key = $rule->key(['option_name' => 'siteurl']);
+// "siteurl"
 ```
 
-Resolution order:
+Rule types:
+
+| Type | Meaning |
+|---|---|
+| `primary` | Database primary key columns |
+| `natural` | Stable unique business columns |
+| `composite` | Composite logical identity columns |
+| `content` | Content hash fallback |
+
+`IdentityRule::forSchema($schema)` resolves the default rule:
 
 1. If the table has a primary key, use the primary key columns.
 2. If the table has unique keys, use the first unique key's columns.
 3. If neither exists, use all columns (content hash fallback).
 
-The `Snapshotter` calls `PrimaryKeyResolver::resolve()` automatically for each table during capture. The chosen identity columns are stored in the `TableSnapshot` and used for all subsequent diff and merge operations.
+## IdentityRuleSet
+
+Use `IdentityRuleSet` when a host application knows a better identity rule than
+the schema default.
+
+```php
+use Merql\Identity\IdentityRule;
+use Merql\Identity\IdentityRuleSet;
+use Merql\Snapshot\Snapshotter;
+
+$rules = new IdentityRuleSet([
+    'wp_options' => IdentityRule::natural(['option_name']),
+    'wp_term_relationships' => IdentityRule::composite(['object_id', 'term_taxonomy_id']),
+]);
+
+$snapshotter = new Snapshotter($pdo, identityRules: $rules);
+$snapshot = $snapshotter->capture('live', ['wp_options', 'wp_term_relationships']);
+```
+
+The `Snapshotter` resolves an `IdentityRule` for every captured table. The
+chosen columns are stored in `TableSnapshot::identityColumns` and used for all
+subsequent diff, merge, plan, SQL, and rollback operations.
+
+`Merql::init()` can receive the same rule set when using the static facade:
+
+```php
+use Merql\Merql;
+
+Merql::init($pdo, identityRules: $rules);
+Merql::snapshot('live', ['wp_options']);
+```
+
+Rule sets have stable array serialization:
+
+```php
+$payload = $rules->toArray();
+$rules = IdentityRuleSet::fromArray($payload);
+```
+
+## Ambiguous Identity
+
+If two captured rows produce the same identity key, capture fails instead of
+overwriting one row with another.
+
+```php
+use Merql\Exceptions\SnapshotException;
+
+try {
+    $snapshotter->capture('live', ['wp_postmeta']);
+} catch (SnapshotException $e) {
+    // The configured identity rule matched multiple rows.
+}
+```
+
+Host applications can preflight raw rows with `IdentityRuleSet::conflictsFor()`
+when they want to report ambiguity before capture:
+
+```php
+$conflicts = $rules->conflictsFor(
+    'wp_postmeta',
+    IdentityRule::natural(['post_id', 'meta_key']),
+    $rows,
+);
+```
+
+For WordPress meta tables, `post_id + meta_key` is usually useful for grouping
+and display, but not safe as row identity because duplicate meta keys are valid.
+Use the table's primary key for row identity unless the host application can
+prove the natural key is unique.
 
 ## Row key encoding
 
@@ -146,4 +226,4 @@ $tableSnapshot->identityColumns;
 // ['id']
 ```
 
-These columns are used by `SqlGenerator` to build WHERE clauses for UPDATE and DELETE statements, and by `Conflict::primaryKey()` to decode the row key back into named columns.
+These columns are used by `SqlGenerator` to build WHERE clauses for UPDATE and DELETE statements, and by merge plans to expose decoded identity values for review, selection, guarded apply, and rollback.
