@@ -1,0 +1,90 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+if ($argc < 3) {
+    fwrite(STDERR, "Usage: php bin/check-coverage <clover.xml> <file> [<file> ...]\n");
+    exit(2);
+}
+
+$clover = $argv[1];
+if (!is_file($clover)) {
+    fwrite(STDERR, "Coverage file not found: {$clover}\n");
+    exit(2);
+}
+
+$root = realpath(__DIR__ . '/..');
+if (!is_string($root)) {
+    fwrite(STDERR, "Unable to resolve project root.\n");
+    exit(2);
+}
+
+$dom = new DOMDocument();
+$dom->load($clover);
+$xpath = new DOMXPath($dom);
+$files = [];
+
+foreach ($xpath->query('//file') as $file) {
+    if (!$file instanceof DOMElement) {
+        continue;
+    }
+
+    $name = $file->getAttribute('name');
+    $real = realpath($name);
+    if (is_string($real)) {
+        $files[$real] = $file;
+    }
+}
+
+$failed = false;
+for ($i = 2; $i < $argc; $i++) {
+    $target = $argv[$i];
+    $path = realpath($root . '/' . ltrim($target, '/'));
+    if (!is_string($path)) {
+        fwrite(STDERR, "Coverage target not found: {$target}\n");
+        $failed = true;
+        continue;
+    }
+
+    $file = $files[$path] ?? null;
+    if (!$file instanceof DOMElement) {
+        fwrite(STDERR, "Coverage target missing from report: {$target}\n");
+        $failed = true;
+        continue;
+    }
+
+    $metrics = $xpath->query('metrics', $file)->item(0);
+    if (!$metrics instanceof DOMElement) {
+        fwrite(STDERR, "Coverage metrics missing for: {$target}\n");
+        $failed = true;
+        continue;
+    }
+
+    $statements = (int) $metrics->getAttribute('statements');
+    $coveredStatements = (int) $metrics->getAttribute('coveredstatements');
+    $methods = (int) $metrics->getAttribute('methods');
+    $coveredMethods = (int) $metrics->getAttribute('coveredmethods');
+
+    if ($statements !== $coveredStatements || $methods !== $coveredMethods) {
+        fwrite(
+            STDERR,
+            "{$target} coverage {$coveredStatements}/{$statements} statements, "
+            . "{$coveredMethods}/{$methods} methods\n",
+        );
+
+        foreach ($xpath->query('line[@type="stmt" and @count="0"]', $file) as $line) {
+            if ($line instanceof DOMElement) {
+                fwrite(STDERR, "  uncovered line " . $line->getAttribute('num') . "\n");
+            }
+        }
+
+        $failed = true;
+    }
+}
+
+if ($failed) {
+    exit(1);
+}
+
+echo "Coverage 100% for " . (string) ($argc - 2) . " target files\n";

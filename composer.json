@@ -61,6 +61,7 @@
         "analyse": "phpstan analyse --memory-limit=512M",
         "cs": "phpcs --warning-severity=0",
         "cs:fix": "phpcbf",
+        "coverage:merge-primitives": "bash bin/verify-merge-primitives-coverage",
         "verify": [
             "@analyse",
             "@cs",

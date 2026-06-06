@@ -51,6 +51,42 @@ final class Snapshotter
         foreach ($tableNames as $tableName) {
             $tableSnapshots[$tableName] = $this->captureTable(
                 $tableName,
+                $tableName,
+                $columnFilter,
+                $rowFilter,
+            );
+        }
+
+        return new Snapshot($name, $tableSnapshots);
+    }
+
+    /**
+     * Capture physical tables under canonical names.
+     *
+     * @param array<string, string> $physicalToCanonicalTableMap Physical table to canonical table.
+     * @param list<TableFilter|ColumnFilter|RowFilter> $filters Filters to apply.
+     */
+    public function captureAliased(string $name, array $physicalToCanonicalTableMap, array $filters = []): Snapshot
+    {
+        $tableFilter = $this->findFilter($filters, TableFilter::class);
+        $columnFilter = $this->findFilter($filters, ColumnFilter::class);
+        $rowFilter = $this->findFilter($filters, RowFilter::class);
+        $canonicalNames = array_values($physicalToCanonicalTableMap);
+
+        if ($tableFilter !== null) {
+            $canonicalNames = $tableFilter->apply($canonicalNames);
+        }
+
+        $allowedCanonical = array_fill_keys($canonicalNames, true);
+        $tableSnapshots = [];
+        foreach ($physicalToCanonicalTableMap as $physicalName => $canonicalName) {
+            if (!isset($allowedCanonical[$canonicalName])) {
+                continue;
+            }
+
+            $tableSnapshots[$canonicalName] = $this->captureTable(
+                $physicalName,
+                $canonicalName,
                 $columnFilter,
                 $rowFilter,
             );
@@ -76,10 +112,19 @@ final class Snapshotter
 
     private function captureTable(
         string $tableName,
+        string $canonicalTableName,
         ?ColumnFilter $columnFilter,
         ?RowFilter $rowFilter,
     ): TableSnapshot {
         $schema = $this->schemaReader->read($tableName);
+        if ($schema->name !== $canonicalTableName) {
+            $schema = new \Merql\Schema\TableSchema(
+                $canonicalTableName,
+                $schema->columns,
+                $schema->primaryKey,
+                $schema->uniqueKeys,
+            );
+        }
         $identityColumns = PrimaryKeyResolver::resolve($schema);
 
         $stmt = $this->pdo->query($this->driver->selectAll($tableName));
@@ -91,7 +136,7 @@ final class Snapshotter
         foreach ($allRows as $rawRow) {
             $row = self::normalizeRow($rawRow);
 
-            if ($rowFilter !== null && !$rowFilter->shouldInclude($tableName, $row)) {
+            if ($rowFilter !== null && !$rowFilter->shouldInclude($canonicalTableName, $row)) {
                 continue;
             }
 

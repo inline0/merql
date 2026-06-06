@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+
+set -e
+
+cd "$(dirname "$0")/.."
+
+mkdir -p build/coverage
+
+XDEBUG_MODE=coverage vendor/bin/phpunit \
+  --coverage-clover build/coverage/merge-primitives.xml \
+  --coverage-filter src \
+  tests/Unit/Plan \
+  tests/Unit/Rollback \
+  tests/Unit/Identity \
+  tests/Unit/Apply \
+  tests/Unit/Snapshot
+
+php bin/check-coverage build/coverage/merge-primitives.xml \
+  src/Apply/GuardedApplier.php \
+  src/Identity/IdentityConflict.php \
+  src/Identity/IdentityRule.php \
+  src/Identity/IdentityRuleSet.php \
+  src/Plan/ChangeGroupSelection.php \
+  src/Plan/MergePlan.php \
+  src/Plan/MergePlanBuilder.php \
+  src/Plan/MergePlanChangeGroup.php \
+  src/Plan/MergePlanConflict.php \
+  src/Plan/MergePlanOperation.php \
+  src/Plan/MergePlanSerializer.php \
+  src/Plan/MergePlanSummary.php \
+  src/Plan/OperationSelection.php \
+  src/Plan/SelectedMergeResultFactory.php \
+  src/Rollback/RollbackDrift.php \
+  src/Rollback/RollbackOperation.php \
+  src/Rollback/RollbackPlan.php \
+  src/Rollback/RollbackPlanApplier.php \
+  src/Rollback/RollbackPlanBuilder.php \
+  src/Rollback/RollbackPlanSerializer.php

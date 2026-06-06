@@ -242,4 +242,54 @@ final class SqlGeneratorTest extends TestCase
         $this->assertStringContainsString('`comments`', $stmts[0]['sql']);
         $this->assertStringContainsString('`posts`', $stmts[1]['sql']);
     }
+
+    #[Test]
+    public function guarded_update_checks_expected_live_row(): void
+    {
+        $schema = new TableSchema('posts', ['id' => 'int', 'title' => 'text', 'status' => 'text'], ['id']);
+        $expected = Snapshotter::fromData('theirs', [
+            'posts' => new TableSnapshotData($schema, [
+                ['id' => '1', 'title' => 'Hello', 'status' => 'draft'],
+            ], ['id']),
+        ]);
+        $result = new MergeResult([
+            new MergeOperation(
+                MergeOperation::TYPE_UPDATE,
+                'posts',
+                '1',
+                ['id' => '1', 'title' => 'Updated', 'status' => 'draft'],
+            ),
+        ]);
+
+        $stmts = SqlGenerator::generateGuarded($result, $expected);
+
+        $this->assertCount(1, $stmts);
+        $this->assertStringContainsString('WHERE `id` = ? AND `title` = ? AND `status` = ?', $stmts[0]['sql']);
+        $this->assertSame(['Updated', 'draft', '1', 'Hello', 'draft'], $stmts[0]['params']);
+    }
+
+    #[Test]
+    public function guarded_insert_checks_identity_does_not_exist(): void
+    {
+        $schema = new TableSchema('posts', ['id' => 'int', 'title' => 'text'], ['id']);
+        $expected = Snapshotter::fromData('theirs', [
+            'posts' => new TableSnapshotData($schema, [], ['id']),
+        ]);
+        $result = new MergeResult([
+            new MergeOperation(
+                MergeOperation::TYPE_INSERT,
+                'posts',
+                '1',
+                ['id' => '1', 'title' => 'New'],
+            ),
+        ]);
+
+        $stmts = SqlGenerator::generateGuarded($result, $expected);
+
+        $this->assertSame(
+            'INSERT INTO `posts` (`id`, `title`) SELECT ?, ? WHERE NOT EXISTS (SELECT 1 FROM `posts` WHERE `id` = ?)',
+            $stmts[0]['sql'],
+        );
+        $this->assertSame(['1', 'New', '1'], $stmts[0]['params']);
+    }
 }

@@ -6,9 +6,12 @@ namespace Merql;
 
 use Merql\Apply\Applier;
 use Merql\Apply\ApplyResult;
+use Merql\Apply\GuardedApplier;
 use Merql\Diff\Changeset;
 use Merql\Diff\Differ;
 use Merql\Merge\MergeResult;
+use Merql\Plan\MergePlan;
+use Merql\Plan\MergePlanBuilder;
 use Merql\Merge\ThreeWayMerge;
 use Merql\Snapshot\Snapshot;
 use Merql\Snapshot\Snapshotter;
@@ -97,6 +100,46 @@ final class Merql
         $applier = new Applier(self::$pdo);
 
         return $applier->apply($result);
+    }
+
+    /**
+     * Build a merge plan from named snapshots.
+     *
+     * @param array<string, mixed> $metadata
+     */
+    public static function plan(
+        string $id,
+        string $base,
+        string $ours,
+        string $theirs,
+        array $metadata = [],
+    ): MergePlan {
+        $baseSnapshot = SnapshotStore::load($base);
+        $oursSnapshot = SnapshotStore::load($ours);
+        $theirsSnapshot = SnapshotStore::load($theirs);
+
+        $merge = new ThreeWayMerge();
+        $result = $merge->merge($baseSnapshot, $oursSnapshot, $theirsSnapshot);
+
+        return (new MergePlanBuilder())->build(
+            $id,
+            $baseSnapshot,
+            $oursSnapshot,
+            $theirsSnapshot,
+            $result,
+            $metadata,
+        );
+    }
+
+    /**
+     * Apply a merge result with optimistic live-row preconditions.
+     */
+    public static function applyGuarded(MergeResult $result, Snapshot $expectedLive): ApplyResult
+    {
+        self::requireInit();
+        assert(self::$pdo !== null);
+
+        return (new GuardedApplier(self::$pdo))->apply($result, $expectedLive);
     }
 
     /**

@@ -7,6 +7,7 @@ namespace Merql\Tests\Unit\Snapshot;
 use Merql\Schema\TableSchema;
 use Merql\Snapshot\Snapshotter;
 use Merql\Snapshot\TableSnapshotData;
+use PDO;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
@@ -79,5 +80,22 @@ final class SnapshotterTest extends TestCase
             ['post_id', 'meta_key'],
         );
         $this->assertSame("1\x1Fcolor", $key);
+    }
+
+    #[Test]
+    public function captures_physical_tables_under_canonical_names(): void
+    {
+        $pdo = new PDO('sqlite::memory:');
+        $pdo->exec('CREATE TABLE sandbox_posts (id INTEGER PRIMARY KEY, title TEXT)');
+        $pdo->exec("INSERT INTO sandbox_posts (id, title) VALUES (1, 'Hello')");
+
+        $snapshot = (new Snapshotter($pdo))->captureAliased('ours', [
+            'sandbox_posts' => 'wp_posts',
+        ]);
+
+        $this->assertFalse($snapshot->hasTable('sandbox_posts'));
+        $this->assertTrue($snapshot->hasTable('wp_posts'));
+        $this->assertSame('wp_posts', $snapshot->getTable('wp_posts')->schema->name);
+        $this->assertSame(['id' => 1, 'title' => 'Hello'], $snapshot->getTable('wp_posts')->getRow('1'));
     }
 }
