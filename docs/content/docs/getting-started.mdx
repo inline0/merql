@@ -13,24 +13,30 @@ This guide walks through installation, connecting to a database, capturing snaps
 composer require merql/merql
 ```
 
-merql requires PHP 8.2+ and `ext-pdo`. No other extensions are needed.
+merql requires PHP 8.2+. Use `ext-pdo` for the PDO adapter and `ext-mysqli`
+for the mysqli adapter. The test suite also uses `ext-pdo_sqlite` for fast
+in-memory SQLite coverage.
 
 ## Connecting to a database
 
-merql works with any PDO-supported database. Built-in drivers are provided for MySQL and SQLite.
+merql works through a small connection adapter interface. Built-in adapters are
+provided for PDO and mysqli, with built-in dialect drivers for MySQL and SQLite.
 
 ```php
 use Merql\Connection;
 
-// SQLite (in-memory or file-based).
-$pdo = Connection::sqlite(':memory:');
-$pdo = Connection::sqlite('/path/to/database.sqlite');
+// SQLite (in-memory or file-based, through PDO).
+$connection = Connection::sqlite(':memory:');
+$connection = Connection::sqlite('/path/to/database.sqlite');
 
-// MySQL.
-$pdo = Connection::mysql('127.0.0.1', 'my_database', 'root', 'password');
+// MySQL through PDO.
+$connection = Connection::mysql('127.0.0.1', 'my_database', 'root', 'password');
+
+// MySQL through mysqli.
+$connection = Connection::mysqli('127.0.0.1', 'my_database', 'root', 'password');
 
 // Any PDO DSN.
-$pdo = Connection::fromDsn('pgsql:host=localhost;dbname=mydb', 'user', 'pass');
+$connection = Connection::fromDsn('pgsql:host=localhost;dbname=mydb', 'user', 'pass');
 ```
 
 ## Capturing a snapshot
@@ -40,7 +46,7 @@ A snapshot records every row of every table (or a subset of tables) as fingerpri
 ```php
 use Merql\Merql;
 
-Merql::init($pdo);
+Merql::init($connection);
 
 // Snapshot all tables.
 $snapshot = Merql::snapshot('baseline');
@@ -179,7 +185,7 @@ use Merql\Filter\TableFilter;
 use Merql\Filter\ColumnFilter;
 use Merql\Snapshot\Snapshotter;
 
-$snapshotter = new Snapshotter($pdo);
+$snapshotter = new Snapshotter($connection);
 
 $snapshot = $snapshotter->capture('baseline', filters: [
     TableFilter::exclude(['sessions', 'cache_*']),

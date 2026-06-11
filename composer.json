@@ -24,17 +24,24 @@
         "mysql",
         "sqlite",
         "snapshot",
-        "pdo"
+        "pdo",
+        "mysqli"
     ],
     "require": {
         "php": "^8.2",
-        "ext-pdo": "*",
         "pitmaster/pitmaster": "^0.2.4"
     },
     "require-dev": {
+        "ext-mysqli": "*",
+        "ext-pdo": "*",
+        "ext-pdo_sqlite": "*",
         "phpstan/phpstan": "^2.0",
         "phpunit/phpunit": "^13.1",
         "squizlabs/php_codesniffer": "^3.11"
+    },
+    "suggest": {
+        "ext-pdo": "Required when using the PDO connection adapter.",
+        "ext-mysqli": "Required when using the mysqli connection adapter."
     },
     "autoload": {
         "psr-4": {

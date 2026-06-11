@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Merql\Apply;
 
+use Merql\Database\DatabaseConnection;
 use Merql\Driver\Driver;
 use Merql\Driver\DriverFactory;
 use Merql\Exceptions\ConflictException;
 use Merql\Merge\MergeResult;
 use Merql\Snapshot\Snapshot;
-use PDO;
 
 /**
  * Executes a merge result with optimistic live-row preconditions.
@@ -19,10 +19,10 @@ final class GuardedApplier
     private readonly Driver $driver;
 
     public function __construct(
-        private readonly PDO $pdo,
+        private readonly DatabaseConnection $connection,
         ?Driver $driver = null,
     ) {
-        $this->driver = $driver ?? DriverFactory::create($pdo);
+        $this->driver = $driver ?? DriverFactory::create($connection);
     }
 
     /**
@@ -34,18 +34,16 @@ final class GuardedApplier
             throw ConflictException::unresolved($result->conflictCount());
         }
 
-        $fkDeps = $this->driver->readForeignKeys($this->pdo);
+        $fkDeps = $this->driver->readForeignKeys($this->connection);
         $statements = SqlGenerator::generateGuarded($result, $expectedLive, $fkDeps, $this->driver);
         $totalAffected = 0;
         $errors = [];
 
-        $this->pdo->beginTransaction();
+        $this->connection->beginTransaction();
 
         try {
             foreach ($statements as $stmt) {
-                $prepared = $this->pdo->prepare($stmt['sql']);
-                $prepared->execute($stmt['params']);
-                $affected = $prepared->rowCount();
+                $affected = $this->connection->execute($stmt['sql'], $stmt['params']);
 
                 if ($affected < 1) {
                     throw new \RuntimeException('Optimistic precondition failed for guarded merge statement.');
@@ -54,9 +52,9 @@ final class GuardedApplier
                 $totalAffected += $affected;
             }
 
-            $this->pdo->commit();
+            $this->connection->commit();
         } catch (\Throwable $e) {
-            $this->pdo->rollBack();
+            $this->connection->rollBack();
             $errors[] = $e->getMessage();
         }
 

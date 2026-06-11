@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Merql\Tests\Unit\Apply;
 
 use Merql\Apply\GuardedApplier;
+use Merql\Connection;
 use Merql\Exceptions\ConflictException;
 use Merql\Merge\Conflict;
 use Merql\Merge\MergeOperation;
@@ -12,7 +13,6 @@ use Merql\Merge\MergeResult;
 use Merql\Schema\TableSchema;
 use Merql\Snapshot\Snapshotter;
 use Merql\Snapshot\TableSnapshotData;
-use PDO;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
@@ -21,7 +21,8 @@ final class GuardedApplierTest extends TestCase
     #[Test]
     public function applies_when_expected_live_row_matches(): void
     {
-        $pdo = new PDO('sqlite::memory:');
+        $connection = Connection::sqlite();
+        $pdo = $connection->pdo();
         $pdo->exec('CREATE TABLE posts (id INTEGER PRIMARY KEY, title TEXT)');
         $pdo->exec("INSERT INTO posts (id, title) VALUES (1, 'Hello')");
         $expected = Snapshotter::fromData('theirs', [
@@ -32,7 +33,7 @@ final class GuardedApplierTest extends TestCase
             ),
         ]);
 
-        $result = (new GuardedApplier($pdo))->apply(new MergeResult([
+        $result = (new GuardedApplier($connection))->apply(new MergeResult([
             new MergeOperation(MergeOperation::TYPE_UPDATE, 'posts', '1', ['id' => 1, 'title' => 'Updated']),
         ]), $expected);
 
@@ -44,7 +45,8 @@ final class GuardedApplierTest extends TestCase
     #[Test]
     public function reports_precondition_failure_when_live_row_drifted(): void
     {
-        $pdo = new PDO('sqlite::memory:');
+        $connection = Connection::sqlite();
+        $pdo = $connection->pdo();
         $pdo->exec('CREATE TABLE posts (id INTEGER PRIMARY KEY, title TEXT)');
         $pdo->exec("INSERT INTO posts (id, title) VALUES (1, 'Someone else')");
         $expected = Snapshotter::fromData('theirs', [
@@ -55,7 +57,7 @@ final class GuardedApplierTest extends TestCase
             ),
         ]);
 
-        $result = (new GuardedApplier($pdo))->apply(new MergeResult([
+        $result = (new GuardedApplier($connection))->apply(new MergeResult([
             new MergeOperation(MergeOperation::TYPE_UPDATE, 'posts', '1', ['id' => 1, 'title' => 'Updated']),
         ]), $expected);
 
@@ -66,12 +68,12 @@ final class GuardedApplierTest extends TestCase
     #[Test]
     public function rejects_unclean_merge_results(): void
     {
-        $pdo = new PDO('sqlite::memory:');
+        $connection = Connection::sqlite();
         $expected = Snapshotter::fromData('theirs', []);
 
         $this->expectException(ConflictException::class);
 
-        (new GuardedApplier($pdo))->apply(new MergeResult([], [
+        (new GuardedApplier($connection))->apply(new MergeResult([], [
             new Conflict('posts', '1', 'update_update'),
         ]), $expected);
     }

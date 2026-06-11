@@ -17,13 +17,13 @@ use Merql\Identity\IdentityRule;
 use Merql\Identity\IdentityRuleSet;
 use Merql\Merql;
 
-$pdo = Connection::sqlite(':memory:');
-Merql::init($pdo, identityRules: new IdentityRuleSet([
+$connection = Connection::sqlite(':memory:');
+Merql::init($connection, identityRules: new IdentityRuleSet([
     'options' => IdentityRule::natural(['option_name']),
 ]));
 ```
 
-### `init(PDO $pdo, ?Driver $driver = null, ?IdentityRuleSet $identityRules = null): void`
+### `init(DatabaseConnection $connection, ?Driver $driver = null, ?IdentityRuleSet $identityRules = null): void`
 
 Initialize the facade with a database connection. Must be called before
 `snapshot()` or `apply()`. Pass a driver to override auto-detection, or an
@@ -97,38 +97,78 @@ $applied = Merql::applyGuarded($selectedResult, SnapshotStore::load('theirs'));
 
 ### `reset(): void`
 
-Clear the internal PDO and Snapshotter instances. Primarily used in tests to reset state between runs.
+Clear the internal connection and Snapshotter instances. Primarily used in tests to reset state between runs.
 
 ---
 
 ## Connection
 
-`Merql\Connection` builds PDO instances with sensible defaults (exceptions on error, associative fetch mode, no emulated prepares, stringified fetches).
+`Merql\Connection` builds connection adapters with sensible defaults. PDO
+connections use exceptions on error, associative fetch mode, no emulated
+prepares, and stringified fetches. The mysqli adapter normalizes fetched values
+to the same string-or-null shape.
 
-### `mysql(string $host, string $database, string $username, string $password = '', int $port = 3306, string $charset = 'utf8mb4'): PDO`
+### `mysql(string $host, string $database, string $username, string $password = '', int $port = 3306, string $charset = 'utf8mb4'): PdoDatabaseConnection`
 
 ```php
 use Merql\Connection;
 
-$pdo = Connection::mysql('127.0.0.1', 'my_app', 'root', 'secret');
+$connection = Connection::mysql('127.0.0.1', 'my_app', 'root', 'secret');
 ```
 
-### `sqlite(string $path = ':memory:'): PDO`
+### `mysqli(string $host, string $database, string $username, string $password = '', int $port = 3306, string $charset = 'utf8mb4'): MysqliDatabaseConnection`
+
+```php
+$connection = Connection::mysqli('127.0.0.1', 'my_app', 'root', 'secret');
+```
+
+### `sqlite(string $path = ':memory:'): PdoDatabaseConnection`
 
 Creates a SQLite connection. Enables foreign keys automatically via `PRAGMA foreign_keys = ON`.
 
 ```php
-$pdo = Connection::sqlite('/var/data/app.sqlite');
-$pdo = Connection::sqlite(':memory:');
+$connection = Connection::sqlite('/var/data/app.sqlite');
+$connection = Connection::sqlite(':memory:');
 ```
 
-### `fromDsn(string $dsn, string $username = '', string $password = ''): PDO`
+### `fromDsn(string $dsn, string $username = '', string $password = ''): PdoDatabaseConnection`
 
 Connect using any PDO DSN string.
 
 ```php
-$pdo = Connection::fromDsn('mysql:host=localhost;dbname=app', 'root', 'pass');
+$connection = Connection::fromDsn('mysql:host=localhost;dbname=app', 'root', 'pass');
 ```
+
+### `fromPdo(PDO $pdo): PdoDatabaseConnection`
+
+Wrap an existing PDO instance.
+
+### `fromMysqli(mysqli $mysqli, string $charset = 'utf8mb4'): MysqliDatabaseConnection`
+
+Wrap an existing mysqli instance.
+
+### Adapter contract
+
+All adapters implement `Merql\Database\DatabaseConnection`:
+
+```php
+interface DatabaseConnection
+{
+    public function driverName(): string;
+    public function execute(string $sql, array $params = []): int;
+    public function query(string $sql, array $params = []): array;
+    public function scalar(string $sql, array $params = []): ?string;
+    public function beginTransaction(): void;
+    public function commit(): void;
+    public function rollBack(): void;
+    public function lastInsertId(): string;
+}
+```
+
+`execute()`, `query()`, and `scalar()` accept positional `list<scalar|null>`
+parameters for `?` placeholders. `query()` returns
+`list<array<string, scalar|null>>`; values are normalized to the same
+string-or-null shape across PDO and mysqli adapters.
 
 ---
 
@@ -136,9 +176,9 @@ $pdo = Connection::fromDsn('mysql:host=localhost;dbname=app', 'root', 'pass');
 
 `Merql\Snapshot\Snapshotter` captures database state. Unlike the facade, it gives you full control over filters and does not auto-persist.
 
-### `__construct(PDO $pdo, ?Driver $driver = null, ?IdentityRuleSet $identityRules = null)`
+### `__construct(DatabaseConnection $connection, ?Driver $driver = null, ?IdentityRuleSet $identityRules = null)`
 
-The driver is auto-detected from the PDO connection if not provided. Pass an
+The driver is auto-detected from the connection identity if not provided. Pass an
 `IdentityRuleSet` when table-specific row identity should override schema
 defaults.
 
@@ -155,7 +195,7 @@ use Merql\Identity\IdentityRule;
 use Merql\Identity\IdentityRuleSet;
 
 $snapshotter = new Snapshotter(
-    $pdo,
+    $connection,
     identityRules: new IdentityRuleSet([
         'wp_options' => IdentityRule::natural(['option_name']),
     ]),
@@ -661,7 +701,7 @@ $result = ColumnMerge::merge(
 
 `Merql\Apply\Applier` executes a merge result against a database.
 
-### `__construct(PDO $pdo, ?Driver $driver = null)`
+### `__construct(DatabaseConnection $connection, ?Driver $driver = null)`
 
 ### `apply(MergeResult $result, ?Snapshot $base = null): ApplyResult`
 
@@ -670,7 +710,7 @@ Executes all operations in a single transaction. Rolls back on any error. Throws
 ```php
 use Merql\Apply\Applier;
 
-$applier = new Applier($pdo);
+$applier = new Applier($connection);
 $applied = $applier->apply($result);
 
 echo "Rows affected: {$applied->rowsAffected()}\n";
@@ -726,7 +766,7 @@ foreach ($statements as $sql) {
 
 ### `generate(MergeResult $result, ?Snapshot $base = null, array $fkDependencies = [], ?Driver $driver = null): array` (static)
 
-Returns `list<array{sql: string, params: list<mixed>}>`.
+Returns `list<array{sql: string, params: list<scalar|null>}>`.
 
 ```php
 use Merql\Apply\SqlGenerator;
@@ -734,8 +774,7 @@ use Merql\Apply\SqlGenerator;
 $statements = SqlGenerator::generate($result);
 
 foreach ($statements as $stmt) {
-    $prepared = $pdo->prepare($stmt['sql']);
-    $prepared->execute($stmt['params']);
+    $connection->execute($stmt['sql'], $stmt['params']);
 }
 ```
 
@@ -885,7 +924,7 @@ $schema->columnNames();            // list<string>
 
 ## Driver system
 
-merql uses a pluggable driver system to abstract database-specific operations. Drivers are auto-detected from the PDO connection.
+merql uses a pluggable driver system to abstract database-specific operations. Drivers are auto-detected from the connection driver identity.
 
 ### Driver (interface)
 
@@ -895,9 +934,9 @@ merql uses a pluggable driver system to abstract database-specific operations. D
 interface Driver
 {
     public function quoteIdentifier(string $name): string;
-    public function listTables(PDO $pdo): array;
-    public function readSchema(PDO $pdo, string $table): TableSchema;
-    public function readForeignKeys(PDO $pdo): array;
+    public function listTables(DatabaseConnection $connection): array;
+    public function readSchema(DatabaseConnection $connection, string $table): TableSchema;
+    public function readForeignKeys(DatabaseConnection $connection): array;
     public function selectAll(string $table): string;
 }
 ```
@@ -906,12 +945,12 @@ Built-in implementations: `MysqlDriver` and `SqliteDriver`.
 
 ### DriverFactory
 
-`Merql\Driver\DriverFactory` auto-detects the driver from a PDO connection.
+`Merql\Driver\DriverFactory` auto-detects the driver from a connection.
 
 ```php
 use Merql\Driver\DriverFactory;
 
-$driver = DriverFactory::create($pdo);
+$driver = DriverFactory::create($connection);
 ```
 
 Register a custom driver for other databases:

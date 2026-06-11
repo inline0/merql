@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Merql\Apply;
 
+use Merql\Database\DatabaseConnection;
 use Merql\Driver\Driver;
 use Merql\Driver\DriverFactory;
 use Merql\Exceptions\ConflictException;
 use Merql\Merge\MergeResult;
 use Merql\Snapshot\Snapshot;
-use PDO;
 
 /**
  * Executes a merge result as SQL against a database.
@@ -19,10 +19,10 @@ final class Applier
     private readonly Driver $driver;
 
     public function __construct(
-        private readonly PDO $pdo,
+        private readonly DatabaseConnection $connection,
         ?Driver $driver = null,
     ) {
-        $this->driver = $driver ?? DriverFactory::create($pdo);
+        $this->driver = $driver ?? DriverFactory::create($connection);
     }
 
     /**
@@ -36,24 +36,22 @@ final class Applier
             throw ConflictException::unresolved($result->conflictCount());
         }
 
-        $fkDeps = $this->driver->readForeignKeys($this->pdo);
+        $fkDeps = $this->driver->readForeignKeys($this->connection);
         $effectiveBase = $base ?? $result->baseSnapshot();
         $statements = SqlGenerator::generate($result, $effectiveBase, $fkDeps, $this->driver);
         $totalAffected = 0;
         $errors = [];
 
-        $this->pdo->beginTransaction();
+        $this->connection->beginTransaction();
 
         try {
             foreach ($statements as $stmt) {
-                $prepared = $this->pdo->prepare($stmt['sql']);
-                $prepared->execute($stmt['params']);
-                $totalAffected += $prepared->rowCount();
+                $totalAffected += $this->connection->execute($stmt['sql'], $stmt['params']);
             }
 
-            $this->pdo->commit();
+            $this->connection->commit();
         } catch (\Throwable $e) {
-            $this->pdo->rollBack();
+            $this->connection->rollBack();
             $errors[] = $e->getMessage();
         }
 

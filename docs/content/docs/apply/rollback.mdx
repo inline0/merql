@@ -83,7 +83,7 @@ When there is no drift, apply the inverse operations.
 ```php
 use Merql\Rollback\RollbackPlanApplier;
 
-$applied = (new RollbackPlanApplier($pdo))->apply($rollback);
+$applied = (new RollbackPlanApplier($connection))->apply($rollback);
 
 if ($applied->hasErrors()) {
     foreach ($applied->errors() as $error) {

@@ -8,6 +8,7 @@ use Merql\Apply\Applier;
 use Merql\Apply\DryRun;
 use Merql\Apply\SqlGenerator;
 use Merql\Connection;
+use Merql\Database\PdoDatabaseConnection;
 use Merql\Diff\Differ;
 use Merql\Driver\SqliteDriver;
 use Merql\Merge\ConflictPolicy;
@@ -24,12 +25,14 @@ use PHPUnit\Framework\TestCase;
  */
 final class SqliteIntegrationTest extends TestCase
 {
+    private PdoDatabaseConnection $connection;
     private PDO $pdo;
     private SqliteDriver $driver;
 
     protected function setUp(): void
     {
-        $this->pdo = Connection::sqlite();
+        $this->connection = Connection::sqlite();
+        $this->pdo = $this->connection->pdo();
         $this->driver = new SqliteDriver();
 
         $this->pdo->exec('
@@ -54,7 +57,7 @@ final class SqliteIntegrationTest extends TestCase
         $this->pdo->exec("INSERT INTO posts VALUES (1, 'Hello', 'Body', 'draft')");
         $this->pdo->exec("INSERT INTO posts VALUES (2, 'World', 'Body2', 'publish')");
 
-        $snapshotter = new Snapshotter($this->pdo, $this->driver);
+        $snapshotter = new Snapshotter($this->connection, $this->driver);
         $snapshot = $snapshotter->capture('test');
 
         $this->assertTrue($snapshot->hasTable('posts'));
@@ -66,7 +69,7 @@ final class SqliteIntegrationTest extends TestCase
     #[Test]
     public function snapshot_specific_tables(): void
     {
-        $snapshotter = new Snapshotter($this->pdo, $this->driver);
+        $snapshotter = new Snapshotter($this->connection, $this->driver);
         $snapshot = $snapshotter->capture('test', ['posts']);
 
         $this->assertTrue($snapshot->hasTable('posts'));
@@ -78,7 +81,7 @@ final class SqliteIntegrationTest extends TestCase
     {
         $this->pdo->exec("INSERT INTO posts VALUES (1, 'Hello', 'Body', 'draft')");
 
-        $snapshotter = new Snapshotter($this->pdo, $this->driver);
+        $snapshotter = new Snapshotter($this->connection, $this->driver);
         $base = $snapshotter->capture('base');
 
         $this->pdo->exec("UPDATE posts SET title = 'Updated' WHERE id = 1");
@@ -101,7 +104,7 @@ final class SqliteIntegrationTest extends TestCase
         $this->pdo->exec("INSERT INTO posts VALUES (1, 'Hello', 'Body', 'draft')");
         $this->pdo->exec("INSERT INTO settings VALUES ('theme', 'light')");
 
-        $snapshotter = new Snapshotter($this->pdo, $this->driver);
+        $snapshotter = new Snapshotter($this->connection, $this->driver);
         $base = $snapshotter->capture('base');
 
         // Simulate "ours": update title.
@@ -127,7 +130,7 @@ final class SqliteIntegrationTest extends TestCase
         $this->pdo->exec("INSERT INTO posts VALUES (1, 'Hello', 'Body v2', 'draft')");
         $this->pdo->exec("INSERT INTO settings VALUES ('theme', 'light')");
 
-        $applier = new Applier($this->pdo, $this->driver);
+        $applier = new Applier($this->connection, $this->driver);
         $applyResult = $applier->apply($result, $base);
 
         $this->assertFalse($applyResult->hasErrors());
@@ -150,7 +153,7 @@ final class SqliteIntegrationTest extends TestCase
     {
         $this->pdo->exec("INSERT INTO posts VALUES (1, 'Hello', 'Body', 'draft')");
 
-        $snapshotter = new Snapshotter($this->pdo, $this->driver);
+        $snapshotter = new Snapshotter($this->connection, $this->driver);
         $base = $snapshotter->capture('base');
 
         // Ours changes title.
@@ -179,7 +182,7 @@ final class SqliteIntegrationTest extends TestCase
     {
         $this->pdo->exec("INSERT INTO posts VALUES (1, 'Hello', 'Body', 'draft')");
 
-        $snapshotter = new Snapshotter($this->pdo, $this->driver);
+        $snapshotter = new Snapshotter($this->connection, $this->driver);
         $base = $snapshotter->capture('base');
 
         $this->pdo->exec("UPDATE posts SET title = 'Updated' WHERE id = 1");
@@ -201,7 +204,7 @@ final class SqliteIntegrationTest extends TestCase
     {
         $this->pdo->exec("INSERT INTO posts VALUES (1, 'Hello', 'Body', 'draft')");
 
-        $snapshotter = new Snapshotter($this->pdo, $this->driver);
+        $snapshotter = new Snapshotter($this->connection, $this->driver);
         $base = $snapshotter->capture('base');
 
         $this->pdo->exec("INSERT INTO posts VALUES (2, 'New', 'New Body', 'publish')");
@@ -219,7 +222,7 @@ final class SqliteIntegrationTest extends TestCase
     #[Test]
     public function schema_reader_reads_sqlite_schema(): void
     {
-        $schema = $this->driver->readSchema($this->pdo, 'posts');
+        $schema = $this->driver->readSchema($this->connection, 'posts');
 
         $this->assertSame('posts', $schema->name);
         $this->assertArrayHasKey('id', $schema->columns);
@@ -230,7 +233,7 @@ final class SqliteIntegrationTest extends TestCase
     #[Test]
     public function lists_sqlite_tables(): void
     {
-        $tables = $this->driver->listTables($this->pdo);
+        $tables = $this->driver->listTables($this->connection);
 
         $this->assertContains('posts', $tables);
         $this->assertContains('settings', $tables);
@@ -247,7 +250,7 @@ final class SqliteIntegrationTest extends TestCase
             )
         ');
 
-        $deps = $this->driver->readForeignKeys($this->pdo);
+        $deps = $this->driver->readForeignKeys($this->connection);
 
         $this->assertArrayHasKey('comments', $deps);
         $this->assertContains('posts', $deps['comments']);
@@ -265,7 +268,7 @@ final class SqliteIntegrationTest extends TestCase
             )
         ');
 
-        $schema = $this->driver->readSchema($this->pdo, 'post_meta');
+        $schema = $this->driver->readSchema($this->connection, 'post_meta');
 
         $this->assertSame(['post_id', 'meta_key'], $schema->primaryKey);
     }
@@ -282,7 +285,7 @@ final class SqliteIntegrationTest extends TestCase
         ');
         $this->pdo->exec('CREATE UNIQUE INDEX idx_email ON users(email)');
 
-        $schema = $this->driver->readSchema($this->pdo, 'users');
+        $schema = $this->driver->readSchema($this->connection, 'users');
 
         $this->assertCount(2, $schema->uniqueKeys);
         $this->assertContains(['email'], $schema->uniqueKeys);
@@ -300,7 +303,7 @@ final class SqliteIntegrationTest extends TestCase
         ');
         $this->pdo->exec("INSERT INTO users VALUES ('a@example.com', 'Alice')");
 
-        $snapshotter = new Snapshotter($this->pdo, $this->driver);
+        $snapshotter = new Snapshotter($this->connection, $this->driver);
         $base = $snapshotter->capture('base');
 
         $this->pdo->exec("UPDATE users SET name = 'Alicia' WHERE email = 'a@example.com'");
@@ -318,7 +321,7 @@ final class SqliteIntegrationTest extends TestCase
     {
         $this->pdo->exec("INSERT INTO posts VALUES (1, 'Hello', NULL, 'draft')");
 
-        $snapshotter = new Snapshotter($this->pdo, $this->driver);
+        $snapshotter = new Snapshotter($this->connection, $this->driver);
         $snapshot = $snapshotter->capture('test');
 
         $row = $snapshot->getTable('posts')->getRow('1');

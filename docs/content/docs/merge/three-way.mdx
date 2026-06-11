@@ -88,7 +88,7 @@ The `Merql` facade operates on named snapshots that have been persisted to disk:
 ```php
 use Merql\Merql;
 
-Merql::init($pdo);
+Merql::init($connection);
 
 $base   = Merql::snapshot('base');
 // ... changes happen ...
@@ -107,7 +107,7 @@ For more control, instantiate the components yourself:
 use Merql\Snapshot\Snapshotter;
 use Merql\Merge\ThreeWayMerge;
 
-$snapshotter = new Snapshotter($pdo);
+$snapshotter = new Snapshotter($connection);
 $base   = $snapshotter->capture('base');
 $ours   = $snapshotter->capture('ours');
 $theirs = $snapshotter->capture('theirs');

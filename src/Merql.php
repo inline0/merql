@@ -7,6 +7,7 @@ namespace Merql;
 use Merql\Apply\Applier;
 use Merql\Apply\ApplyResult;
 use Merql\Apply\GuardedApplier;
+use Merql\Database\DatabaseConnection;
 use Merql\Diff\Changeset;
 use Merql\Diff\Differ;
 use Merql\Driver\Driver;
@@ -18,20 +19,22 @@ use Merql\Merge\ThreeWayMerge;
 use Merql\Snapshot\Snapshot;
 use Merql\Snapshot\Snapshotter;
 use Merql\Snapshot\SnapshotStore;
-use PDO;
 
 /**
  * Static facade: public API entry point.
  */
 final class Merql
 {
-    private static ?PDO $pdo = null;
+    private static ?DatabaseConnection $connection = null;
     private static ?Snapshotter $snapshotter = null;
 
-    public static function init(PDO $pdo, ?Driver $driver = null, ?IdentityRuleSet $identityRules = null): void
-    {
-        self::$pdo = $pdo;
-        self::$snapshotter = new Snapshotter($pdo, $driver, $identityRules);
+    public static function init(
+        DatabaseConnection $connection,
+        ?Driver $driver = null,
+        ?IdentityRuleSet $identityRules = null,
+    ): void {
+        self::$connection = $connection;
+        self::$snapshotter = new Snapshotter($connection, $driver, $identityRules);
     }
 
     /**
@@ -97,9 +100,9 @@ final class Merql
     public static function apply(MergeResult $result): ApplyResult
     {
         self::requireInit();
-        assert(self::$pdo !== null);
+        assert(self::$connection !== null);
 
-        $applier = new Applier(self::$pdo);
+        $applier = new Applier(self::$connection);
 
         return $applier->apply($result);
     }
@@ -139,9 +142,9 @@ final class Merql
     public static function applyGuarded(MergeResult $result, Snapshot $expectedLive): ApplyResult
     {
         self::requireInit();
-        assert(self::$pdo !== null);
+        assert(self::$connection !== null);
 
-        return (new GuardedApplier(self::$pdo))->apply($result, $expectedLive);
+        return (new GuardedApplier(self::$connection))->apply($result, $expectedLive);
     }
 
     /**
@@ -149,14 +152,14 @@ final class Merql
      */
     public static function reset(): void
     {
-        self::$pdo = null;
+        self::$connection = null;
         self::$snapshotter = null;
     }
 
     private static function requireInit(): void
     {
-        if (self::$pdo === null) {
-            throw new \RuntimeException('Call Merql::init() with a PDO instance first');
+        if (self::$connection === null) {
+            throw new \RuntimeException('Call Merql::init() with a database connection first');
         }
     }
 }

@@ -24,7 +24,7 @@ final class ApplierTest extends TestCase
         $this->expectException(ConflictException::class);
         $this->expectExceptionMessage('1 unresolved conflict');
 
-        // We can't test the full Applier without a PDO, but we can test
+        // We can't test the full Applier without a database connection, but we can test
         // that MergeResult correctly reports conflicts.
         if (!$result->isClean()) {
             throw ConflictException::unresolved($result->conflictCount());

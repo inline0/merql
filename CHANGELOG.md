@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.4.0] - 2026-06-11
+
+### Added
+
+- `DatabaseConnection` abstraction covering query execution, positional
+  prepared-statement parameters, scalar reads, transactions, last insert IDs,
+  and driver identity.
+- PDO and mysqli connection adapters with matching string-or-null fetch shapes.
+- `Connection::mysqli()` and `Connection::fromMysqli()` for MySQL access on
+  hosts where `pdo_mysql` is unavailable.
+- Adapter contract tests and a mysqli/MySQL integration lane covering
+  stringified values, transactions, binding edge cases, surfaced errors, and a
+  snapshot-to-rollback merge flow.
+
+### Changed
+
+- `Merql::init()`, `Snapshotter`, appliers, schema readers, and driver
+  detection now accept `DatabaseConnection` instead of raw PDO.
+- `Connection::mysql()`, `Connection::sqlite()`, and `Connection::fromDsn()`
+  now return PDO adapter instances instead of raw PDO handles.
+- Driver detection now keys off `DatabaseConnection::driverName()` instead of
+  `PDO::ATTR_DRIVER_NAME`.
+- `ext-pdo` is no longer a hard runtime package requirement; install the
+  extension needed by the adapter in use.
+
 ## [0.3.0] - 2026-06-06
 
 ### Added

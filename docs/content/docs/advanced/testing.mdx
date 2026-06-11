@@ -102,7 +102,7 @@ composer test          # Full PHPUnit + oracle matrix
 ```bash
 composer cs            # PSR-12 coding standards check
 composer cs:fix        # Auto-fix coding standards
-composer analyse       # PHPStan level 8 static analysis
+composer analyse       # PHPStan level 10 static analysis
 ```
 
 ## Scenario categories
@@ -253,7 +253,7 @@ $results = ScenarioRunner::runAll($scenarios);
 
 merql enforces:
 
-- **PHPStan level 8** -- strict static analysis with no baseline exceptions.
+- **PHPStan level 10** -- strict static analysis with no baseline exceptions.
 - **PSR-12** -- coding standards checked by `phpcs`.
 - **Oracle regression** -- all 32 scenarios must pass.
 - **Unit tests** -- isolated tests for each component.

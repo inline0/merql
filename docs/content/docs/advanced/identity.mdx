@@ -122,7 +122,7 @@ $rules = new IdentityRuleSet([
     'wp_term_relationships' => IdentityRule::composite(['object_id', 'term_taxonomy_id']),
 ]);
 
-$snapshotter = new Snapshotter($pdo, identityRules: $rules);
+$snapshotter = new Snapshotter($connection, identityRules: $rules);
 $snapshot = $snapshotter->capture('live', ['wp_options', 'wp_term_relationships']);
 ```
 
@@ -135,7 +135,7 @@ subsequent diff, merge, plan, SQL, and rollback operations.
 ```php
 use Merql\Merql;
 
-Merql::init($pdo, identityRules: $rules);
+Merql::init($connection, identityRules: $rules);
 Merql::snapshot('live', ['wp_options']);
 ```
 

@@ -11,7 +11,7 @@ final class ForeignKeyResolver
 {
     /**
      * Build dependency map from snapshot metadata.
-     * Used when no PDO is available (offline mode).
+     * Used when no connection is available (offline mode).
      *
      * @param array<string, list<string>> $dependencies Child to parents mapping.
      * @param list<string> $tables Tables to order.

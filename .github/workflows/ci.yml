@@ -19,6 +19,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
+          extensions: mysqli, pdo_sqlite
           tools: composer
       - run: composer install --no-interaction --prefer-dist
       - run: composer cs
@@ -31,6 +32,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
+          extensions: mysqli, pdo_sqlite
           tools: composer
       - run: composer install --no-interaction --prefer-dist
       - run: composer analyse
@@ -43,9 +45,42 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
+          extensions: mysqli, pdo_sqlite
           tools: composer
       - run: composer install --no-interaction --prefer-dist
       - run: composer test
+
+  mysqli-integration:
+    name: MySQLi Integration
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: merql_test
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      MERQL_MYSQL_HOST: 127.0.0.1
+      MERQL_MYSQL_PORT: 3306
+      MERQL_MYSQL_DATABASE: merql_test
+      MERQL_MYSQL_USER: root
+      MERQL_MYSQL_PASSWORD: root
+    steps:
+      - uses: actions/checkout@v5
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mysqli, pdo_sqlite
+          tools: composer
+      - run: composer install --no-interaction --prefer-dist
+      - run: composer test:integration
 
   coverage:
     name: Merge Primitive Coverage
@@ -55,6 +90,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
+          extensions: mysqli, pdo_sqlite
           tools: composer
           coverage: xdebug
       - run: composer install --no-interaction --prefer-dist

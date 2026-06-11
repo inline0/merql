@@ -124,7 +124,7 @@ environments, capture them under the same canonical name before planning.
 use Merql\Snapshot\SnapshotStore;
 use Merql\Snapshot\Snapshotter;
 
-$snapshotter = new Snapshotter($pdo);
+$snapshotter = new Snapshotter($connection);
 
 SnapshotStore::save($snapshotter->captureAliased('live', [
     'wp_posts' => 'wp_posts',

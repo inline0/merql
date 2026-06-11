@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Merql\Tests\Integration;
 
 use Merql\Connection;
+use Merql\Database\PdoDatabaseConnection;
 use Merql\Merql;
 use Merql\Schema\TableSchema;
 use Merql\Snapshot\SnapshotStore;
@@ -16,12 +17,14 @@ use PHPUnit\Framework\TestCase;
 
 final class MerqlFacadeIntegrationTest extends TestCase
 {
+    private PdoDatabaseConnection $connection;
     private PDO $pdo;
     private string $snapshotDir;
 
     protected function setUp(): void
     {
-        $this->pdo = Connection::sqlite();
+        $this->connection = Connection::sqlite();
+        $this->pdo = $this->connection->pdo();
         $this->snapshotDir = sys_get_temp_dir() . '/merql_facade_' . uniqid('', true);
 
         mkdir($this->snapshotDir, 0755, true);
@@ -56,7 +59,7 @@ final class MerqlFacadeIntegrationTest extends TestCase
         ');
         $this->pdo->exec("INSERT INTO post_meta VALUES ('red', 1, 'color')");
 
-        Merql::init($this->pdo);
+        Merql::init($this->connection);
         Merql::snapshot('base');
         Merql::snapshot('ours');
 
@@ -84,7 +87,7 @@ final class MerqlFacadeIntegrationTest extends TestCase
         $this->pdo->exec('CREATE TABLE posts (id INTEGER PRIMARY KEY, title TEXT)');
         $this->pdo->exec("INSERT INTO posts VALUES (1, 'Hello')");
 
-        Merql::init($this->pdo);
+        Merql::init($this->connection);
         Merql::snapshot('base');
         Merql::snapshot('ours');
 

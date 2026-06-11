@@ -7,6 +7,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 
 use Merql\Apply\DryRun;
 use Merql\Connection;
+use Merql\Database\DatabaseConnection;
 use Merql\Merql;
 use Merql\Snapshot\SnapshotStore;
 
@@ -36,8 +37,8 @@ function cmdSnapshot(array $argv): void
         exit(1);
     }
 
-    $pdo = getConnection();
-    Merql::init($pdo);
+    $connection = getConnection();
+    Merql::init($connection);
     $snapshot = Merql::snapshot($name);
 
     echo "Snapshot '{$name}' saved\n";
@@ -89,10 +90,11 @@ function cmdMerge(array $argv): void
     }
 }
 
-function getConnection(): PDO
+function getConnection(): DatabaseConnection
 {
     // SQLite: set MERQL_DB_DSN=sqlite:/path/to/db.sqlite
     // MySQL:  set MERQL_DB_NAME=mydb (plus optional host/port/user/pass)
+    // MySQLi: set MERQL_DB_ADAPTER=mysqli with MERQL_DB_NAME.
     $dsn = getenv('MERQL_DB_DSN') ?: '';
     if ($dsn !== '') {
         return Connection::fromDsn($dsn, getenv('MERQL_DB_USER') ?: '', getenv('MERQL_DB_PASS') ?: '');
@@ -108,6 +110,10 @@ function getConnection(): PDO
     $port = (int) (getenv('MERQL_DB_PORT') ?: '3306');
     $user = getenv('MERQL_DB_USER') ?: 'root';
     $pass = getenv('MERQL_DB_PASS') ?: '';
+
+    if ((getenv('MERQL_DB_ADAPTER') ?: '') === 'mysqli') {
+        return Connection::mysqli($host, $db, $user, $pass, $port);
+    }
 
     return Connection::mysql($host, $db, $user, $pass, $port);
 }

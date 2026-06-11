@@ -7,7 +7,7 @@ description: Pure PHP three-way database merge with column-level conflict resolu
 
 merql is a pure PHP library that performs three-way merges on database state. It snapshots tables, computes changesets between snapshots, merges two sets of changes against a common base, and detects conflicts at the column level. The same algorithm git uses for source files, applied to rows and columns instead of lines.
 
-No extensions beyond PDO. No external tools. Supports MySQL and SQLite through a pluggable driver system.
+No external tools. Supports MySQL and SQLite through pluggable connection adapters and dialect drivers.
 
 ## Quick example
 
@@ -15,8 +15,8 @@ No extensions beyond PDO. No external tools. Supports MySQL and SQLite through a
 use Merql\Connection;
 use Merql\Merql;
 
-$pdo = Connection::sqlite(':memory:');
-Merql::init($pdo);
+$connection = Connection::sqlite(':memory:');
+Merql::init($connection);
 
 // Capture states at three points in time.
 $base   = Merql::snapshot('base');
@@ -76,7 +76,8 @@ Three states, same as git. Base is the common ancestor. Ours is the current data
 ## Requirements
 
 - PHP 8.2 or later.
-- `ext-pdo` (built-in with every PHP installation).
+- `ext-pdo` and `ext-pdo_sqlite` for the default SQLite test lane.
+- `ext-mysqli` when using the mysqli adapter.
 - MySQL or SQLite database.
 
 ## What it is not

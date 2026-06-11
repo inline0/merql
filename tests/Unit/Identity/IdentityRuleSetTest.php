@@ -76,7 +76,8 @@ final class IdentityRuleSetTest extends TestCase
         $this->assertSame(['id'], $rule->columns);
         $this->assertSame([], $emptyRule->columns);
         $this->assertSame(['id'], $rules->ruleFor(new TableSchema('posts', ['id' => 'int'], []))->columns);
-        $this->assertSame(['id'], (new IdentityRuleSet())->ruleFor(new TableSchema('fallback', ['id' => 'int'], ['id']))->columns);
+        $fallbackRule = (new IdentityRuleSet())->ruleFor(new TableSchema('fallback', ['id' => 'int'], ['id']));
+        $this->assertSame(['id'], $fallbackRule->columns);
         $this->assertSame(['slug'], $withRule->ruleFor(new TableSchema('custom', ['slug' => 'text'], []))->columns);
     }
 }

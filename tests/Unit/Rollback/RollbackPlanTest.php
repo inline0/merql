@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Merql\Tests\Unit\Rollback;
 
+use Merql\Connection;
 use Merql\Merge\MergeOperation;
 use Merql\Merge\ThreeWayMerge;
 use Merql\Plan\MergePlanBuilder;
@@ -15,7 +16,6 @@ use Merql\Rollback\RollbackPlanSerializer;
 use Merql\Schema\TableSchema;
 use Merql\Snapshot\Snapshotter;
 use Merql\Snapshot\TableSnapshotData;
-use PDO;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
@@ -91,7 +91,10 @@ final class RollbackPlanTest extends TestCase
         $hydrated = RollbackPlanSerializer::fromJson(RollbackPlanSerializer::toJson($rollback));
 
         $this->assertSame($rollback->hash, $hydrated->hash);
-        $this->assertSame($rollback->operations[0]->inverseOperation->values, $hydrated->operations[0]->inverseOperation->values);
+        $this->assertSame(
+            $rollback->operations[0]->inverseOperation->values,
+            $hydrated->operations[0]->inverseOperation->values,
+        );
     }
 
     #[Test]
@@ -134,7 +137,8 @@ final class RollbackPlanTest extends TestCase
     #[Test]
     public function applies_rollback_plan(): void
     {
-        $pdo = new PDO('sqlite::memory:');
+        $connection = Connection::sqlite();
+        $pdo = $connection->pdo();
         $pdo->exec('CREATE TABLE posts (id INTEGER PRIMARY KEY, title TEXT)');
         $pdo->exec("INSERT INTO posts (id, title) VALUES (1, 'Updated')");
         $base = $this->snapshot('base', [['id' => '1', 'title' => 'Hello']]);
@@ -148,7 +152,7 @@ final class RollbackPlanTest extends TestCase
             [$plan->operations[0]->id => ['id' => '1', 'title' => 'Hello']],
         );
 
-        $apply = (new RollbackPlanApplier($pdo))->apply($rollback, $base);
+        $apply = (new RollbackPlanApplier($connection))->apply($rollback, $base);
 
         $this->assertFalse($apply->hasErrors());
         $this->assertSame('Hello', $pdo->query('SELECT title FROM posts WHERE id = 1')->fetchColumn());

@@ -56,7 +56,7 @@ A library that:
 5. Generates SQL to apply the merged result
 6. Supports dry-run preview and manual conflict resolution
 
-All without external tools. Direct PDO for database access.
+All without external tools. Database access goes through PDO or mysqli connection adapters.
 
 ## What This Is Not
 
@@ -186,7 +186,8 @@ merql/
 │   │   ├── ColumnFilter.php             # Ignore specific columns (e.g., updated_at timestamps)
 │   │   └── RowFilter.php               # Ignore specific rows (e.g., transient data)
 │   │
-│   ├── Connection.php                   # PDO connection builder
+│   ├── Database/                        # Connection interface plus PDO and mysqli adapters
+│   ├── Connection.php                   # Connection adapter builders
 │   └── Exceptions/
 │       ├── SnapshotException.php
 │       ├── MergeException.php
@@ -288,7 +289,7 @@ merql/
 ### Facade
 
 ```php
-Merql::init(PDO $pdo);                                       // Initialize with database connection
+Merql::init(DatabaseConnection $connection);                  // Initialize with database connection
 Merql::snapshot(string $name, array $tables = []);            // Capture current state
 Merql::diff(string $base, string $current): Changeset;       // Compute changeset
 Merql::merge(string $base, string $ours, string $theirs): MergeResult;
@@ -299,7 +300,7 @@ Merql::reset();                                              // Reset singletons
 ### Snapshotter
 
 ```php
-$snapshotter = new Snapshotter($pdo);
+$snapshotter = new Snapshotter($connection);
 
 // Capture full database
 $snapshot = $snapshotter->capture('baseline');
@@ -359,7 +360,7 @@ foreach ($result->conflicts() as $conflict) {
 
 ```php
 // Apply to database
-$applier = new Applier($pdo);
+$applier = new Applier($connection);
 $applyResult = $applier->apply($mergeResult);
 echo "Rows affected: {$applyResult->rowsAffected()}";
 
@@ -382,7 +383,7 @@ foreach ($sql as $statement) {
 
 ## Key Rules
 
-1. Pure PHP. No extensions beyond PDO (which is built-in everywhere). No `exec()`. No external diff tools. The merge algorithm is implemented entirely in PHP.
+1. Pure PHP. Uses PDO by default and mysqli where hosts require it. No `exec()`. No external diff tools. The merge algorithm is implemented entirely in PHP.
 2. Three-way merge is the only merge strategy. Two-way diff is a building block, not a product. The library always needs three states: base, ours, theirs. Without a common base, you cannot distinguish "added" from "unchanged."
 3. Column-level merge is the default. Row-level merge (flag entire row as conflicting if any column differs) is available as a fallback but column-level is the primary mode. This is the key advantage over naive approaches.
 4. Row identity is determined by primary key by default. For tables without auto-increment PKs, support natural keys (unique columns) and content hash fallback. Row identity must be stable across snapshots.
@@ -394,7 +395,7 @@ foreach ($sql as $statement) {
 10. Auto-increment IDs are not stable identifiers across branches. When both sides insert rows, they get different auto-increment IDs. merql must handle this: match by natural key when available, or treat as independent inserts.
 11. JSON columns are merged as opaque strings by default. JSON-aware deep merge (merge object keys independently) is a future enhancement, not a v1 requirement.
 12. PHP 8.2+. Use readonly classes for `Snapshot`, `Changeset`, `RowInsert`, `RowUpdate`, `RowDelete`, `Conflict`, `MergeResult`. Use enums for `ConflictPolicy`. Use match expressions.
-13. Direct PDO for database access. No framework dependency. Pass a PDO instance or connection config.
+13. Database access goes through a small connection abstraction. No framework dependency. Pass a MerQL connection adapter.
 
 ## Oracle Model
 

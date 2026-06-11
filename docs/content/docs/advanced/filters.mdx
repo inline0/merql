@@ -12,7 +12,7 @@ use Merql\Filter\TableFilter;
 use Merql\Filter\ColumnFilter;
 use Merql\Snapshot\Snapshotter;
 
-$snapshotter = new Snapshotter($pdo);
+$snapshotter = new Snapshotter($connection);
 
 $snapshot = $snapshotter->capture('baseline', filters: [
     TableFilter::exclude(['sessions', 'cache_*']),

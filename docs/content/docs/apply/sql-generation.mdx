@@ -83,7 +83,7 @@ The `Applier` reads foreign key relationships from the database automatically:
 ```php
 use Merql\Apply\Applier;
 
-$applier = new Applier($pdo);
+$applier = new Applier($connection);
 $applied = $applier->apply($result);
 // FK dependencies are read from the database via the driver.
 ```
@@ -143,12 +143,12 @@ INSERT INTO `posts` (`id`, `title`) SELECT ?, ? WHERE NOT EXISTS (
 
 ## NULL handling
 
-NULL values are passed as PHP `null` in the params array. PDO handles the binding:
+NULL values are passed as PHP `null` in the params array. The connection adapter handles the binding:
 
 ```php
 $statements = SqlGenerator::generate($result);
 // params might contain: [42, null, 'draft']
-// PDO binds null as SQL NULL
+// The adapter binds null as SQL NULL
 ```
 
 In dry run output, NULL values are rendered as the literal string `NULL` without quotes.

@@ -5,13 +5,16 @@ description: Pluggable driver system for MySQL, SQLite, and custom databases.
 
 # Database Drivers
 
-merql uses a `Driver` interface to abstract all database-engine-specific operations. Built-in drivers are provided for MySQL and SQLite. Custom drivers can be registered for any PDO-supported database.
+merql separates connection transport from database dialect. A
+`DatabaseConnection` adapter executes SQL over PDO or mysqli, while a `Driver`
+handles database-engine-specific metadata SQL and identifier quoting. Built-in
+drivers are provided for MySQL and SQLite.
 
 ```php
 use Merql\Driver\DriverFactory;
 
-$driver = DriverFactory::create($pdo);
-// Auto-detects MySQL or SQLite from the PDO connection.
+$driver = DriverFactory::create($connection);
+// Auto-detects MySQL or SQLite from the connection driver identity.
 ```
 
 ## The Driver interface
@@ -24,9 +27,9 @@ use Merql\Driver\Driver;
 interface Driver
 {
     public function quoteIdentifier(string $name): string;
-    public function listTables(PDO $pdo): array;
-    public function readSchema(PDO $pdo, string $table): TableSchema;
-    public function readForeignKeys(PDO $pdo): array;
+    public function listTables(DatabaseConnection $connection): array;
+    public function readSchema(DatabaseConnection $connection, string $table): TableSchema;
+    public function readForeignKeys(DatabaseConnection $connection): array;
     public function selectAll(string $table): string;
 }
 ```
@@ -54,13 +57,13 @@ $driver->quoteIdentifier('posts');
 $driver->quoteIdentifier('my`table');
 // `my``table`
 
-$tables = $driver->listTables($pdo);
+$tables = $driver->listTables($connection);
 // ['comments', 'posts', 'users']
 
-$schema = $driver->readSchema($pdo, 'posts');
+$schema = $driver->readSchema($connection, 'posts');
 // TableSchema with columns, primaryKey, uniqueKeys
 
-$fks = $driver->readForeignKeys($pdo);
+$fks = $driver->readForeignKeys($connection);
 // ['comments' => ['posts', 'users']]
 ```
 
@@ -81,33 +84,34 @@ $driver->quoteIdentifier('posts');
 $driver->quoteIdentifier('my"table');
 // "my""table"
 
-$tables = $driver->listTables($pdo);
+$tables = $driver->listTables($connection);
 // Queries sqlite_master, excludes sqlite_* internal tables.
 
-$schema = $driver->readSchema($pdo, 'posts');
+$schema = $driver->readSchema($connection, 'posts');
 // Uses PRAGMA table_info() and PRAGMA index_list().
 
-$fks = $driver->readForeignKeys($pdo);
+$fks = $driver->readForeignKeys($connection);
 // Uses PRAGMA foreign_key_list() for each table.
 ```
 
 ## DriverFactory
 
-`DriverFactory` auto-detects the correct driver from a PDO connection's driver name attribute.
+`DriverFactory` auto-detects the correct driver from `DatabaseConnection::driverName()`.
 
 ```php
+use Merql\Connection;
 use Merql\Driver\DriverFactory;
 
-$pdo = new PDO('mysql:host=localhost;dbname=mydb', 'root', '');
-$driver = DriverFactory::create($pdo);
+$connection = Connection::mysql('127.0.0.1', 'mydb', 'root', '');
+$driver = DriverFactory::create($connection);
 // Returns MysqlDriver
 
-$pdo = new PDO('sqlite::memory:');
-$driver = DriverFactory::create($pdo);
+$connection = Connection::sqlite(':memory:');
+$driver = DriverFactory::create($connection);
 // Returns SqliteDriver
 ```
 
-If the PDO driver is not recognized, a `RuntimeException` is thrown.
+If the connection driver identity is not recognized, a `RuntimeException` is thrown.
 
 ### Registering custom drivers
 
@@ -118,12 +122,12 @@ use Merql\Driver\DriverFactory;
 
 DriverFactory::register('pgsql', PostgresDriver::class);
 
-$pdo = new PDO('pgsql:host=localhost;dbname=mydb', 'user', 'pass');
-$driver = DriverFactory::create($pdo);
+$connection = Connection::fromDsn('pgsql:host=localhost;dbname=mydb', 'user', 'pass');
+$driver = DriverFactory::create($connection);
 // Returns your PostgresDriver instance.
 ```
 
-The driver class must implement the `Driver` interface. The first argument to `register()` is the PDO driver name string (the value of `PDO::ATTR_DRIVER_NAME`).
+The driver class must implement the `Driver` interface. The first argument to `register()` is the connection driver identity.
 
 ### Reset
 
@@ -136,21 +140,28 @@ DriverFactory::reset();
 
 ## Connection helper
 
-The `Connection` class builds PDO instances with sensible defaults (exceptions on error, associative fetch mode, real prepared statements, stringified fetches):
+The `Connection` class builds adapters with sensible defaults. PDO adapters use
+exceptions on error, associative fetch mode, real prepared statements, and
+stringified fetches. The mysqli adapter sets `utf8mb4`, uses mysqli exception
+mode, prepared statements, and normalizes fetched values to the same
+string-or-null shape.
 
 ```php
 use Merql\Connection;
 
 // MySQL.
-$pdo = Connection::mysql('127.0.0.1', 'my_database', 'root', 'password');
-$pdo = Connection::mysql('db.example.com', 'mydb', 'user', 'pass', port: 3307);
+$connection = Connection::mysql('127.0.0.1', 'my_database', 'root', 'password');
+$connection = Connection::mysql('db.example.com', 'mydb', 'user', 'pass', port: 3307);
+
+// MySQLi.
+$connection = Connection::mysqli('127.0.0.1', 'my_database', 'root', 'password');
 
 // SQLite.
-$pdo = Connection::sqlite(':memory:');
-$pdo = Connection::sqlite('/var/data/app.sqlite');
+$connection = Connection::sqlite(':memory:');
+$connection = Connection::sqlite('/var/data/app.sqlite');
 
 // Any DSN.
-$pdo = Connection::fromDsn('pgsql:host=localhost;dbname=mydb', 'user', 'pass');
+$connection = Connection::fromDsn('pgsql:host=localhost;dbname=mydb', 'user', 'pass');
 ```
 
 `Connection::sqlite()` also enables `PRAGMA foreign_keys = ON` automatically, which SQLite requires for foreign key enforcement.
@@ -163,4 +174,4 @@ Drivers are used throughout merql:
 - **Applier** uses `readForeignKeys` to determine operation ordering and passes the driver to `SqlGenerator` for identifier quoting.
 - **SqlGenerator** uses `quoteIdentifier` to build safe SQL.
 
-If you pass a PDO connection to `Snapshotter` or `Applier` without specifying a driver, `DriverFactory::create()` is called automatically.
+If you pass a connection to `Snapshotter` or `Applier` without specifying a driver, `DriverFactory::create()` is called automatically.

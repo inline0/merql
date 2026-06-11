@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Merql\Driver;
 
+use Merql\Database\DatabaseConnection;
 use Merql\Schema\TableSchema;
-use PDO;
 
 /**
  * SQLite driver implementation.
@@ -17,43 +17,44 @@ final class SqliteDriver implements Driver
         return '"' . str_replace('"', '""', $name) . '"';
     }
 
-    public function listTables(PDO $pdo): array
+    public function listTables(DatabaseConnection $connection): array
     {
-        $stmt = $pdo->query(
+        $rows = $connection->query(
             "SELECT name FROM sqlite_master "
             . "WHERE type = 'table' AND name NOT LIKE 'sqlite_%' "
-            . "ORDER BY name"
+            . "ORDER BY name",
         );
 
-        /** @var list<string> */
-        return $stmt !== false ? array_values($stmt->fetchAll(PDO::FETCH_COLUMN)) : [];
+        $tables = [];
+        foreach ($rows as $row) {
+            $table = $row['name'] ?? null;
+            if (is_string($table)) {
+                $tables[] = $table;
+            }
+        }
+
+        return $tables;
     }
 
-    public function readSchema(PDO $pdo, string $table): TableSchema
+    public function readSchema(DatabaseConnection $connection, string $table): TableSchema
     {
-        $columns = $this->readColumns($pdo, $table);
-        $primaryKey = $this->readPrimaryKey($pdo, $table);
-        $uniqueKeys = $this->readUniqueKeys($pdo, $table);
+        $columns = $this->readColumns($connection, $table);
+        $primaryKey = $this->readPrimaryKey($connection, $table);
+        $uniqueKeys = $this->readUniqueKeys($connection, $table);
 
         return new TableSchema($table, $columns, $primaryKey, $uniqueKeys);
     }
 
-    public function readForeignKeys(PDO $pdo): array
+    public function readForeignKeys(DatabaseConnection $connection): array
     {
-        $tables = $this->listTables($pdo);
+        $tables = $this->listTables($connection);
         $deps = [];
 
         foreach ($tables as $table) {
-            $stmt = $pdo->query("PRAGMA foreign_key_list(" . $this->quoteIdentifier($table) . ")");
-            if ($stmt === false) {
-                continue;
-            }
+            $fkRows = $connection->query("PRAGMA foreign_key_list(" . $this->quoteIdentifier($table) . ")");
 
             $parents = [];
-            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-                if (!is_array($row)) {
-                    continue;
-                }
+            foreach ($fkRows as $row) {
                 $parent = $row['table'] ?? null;
                 if (!is_string($parent)) {
                     continue;
@@ -78,18 +79,12 @@ final class SqliteDriver implements Driver
     /**
      * @return array<string, string>
      */
-    private function readColumns(PDO $pdo, string $table): array
+    private function readColumns(DatabaseConnection $connection, string $table): array
     {
-        $stmt = $pdo->query("PRAGMA table_info(" . $this->quoteIdentifier($table) . ")");
-        if ($stmt === false) {
-            return [];
-        }
+        $rows = $connection->query("PRAGMA table_info(" . $this->quoteIdentifier($table) . ")");
 
         $columns = [];
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            if (!is_array($row)) {
-                continue;
-            }
+        foreach ($rows as $row) {
             $name = $row['name'] ?? null;
             $type = $row['type'] ?? null;
             if (!is_string($name)) {
@@ -104,18 +99,12 @@ final class SqliteDriver implements Driver
     /**
      * @return list<string>
      */
-    private function readPrimaryKey(PDO $pdo, string $table): array
+    private function readPrimaryKey(DatabaseConnection $connection, string $table): array
     {
-        $stmt = $pdo->query("PRAGMA table_info(" . $this->quoteIdentifier($table) . ")");
-        if ($stmt === false) {
-            return [];
-        }
+        $rows = $connection->query("PRAGMA table_info(" . $this->quoteIdentifier($table) . ")");
 
         $pkColumns = [];
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            if (!is_array($row)) {
-                continue;
-            }
+        foreach ($rows as $row) {
             $pk = $row['pk'] ?? null;
             $name = $row['name'] ?? null;
             if (!is_numeric($pk) || !is_string($name)) {
@@ -135,18 +124,12 @@ final class SqliteDriver implements Driver
     /**
      * @return list<list<string>>
      */
-    private function readUniqueKeys(PDO $pdo, string $table): array
+    private function readUniqueKeys(DatabaseConnection $connection, string $table): array
     {
-        $stmt = $pdo->query("PRAGMA index_list(" . $this->quoteIdentifier($table) . ")");
-        if ($stmt === false) {
-            return [];
-        }
+        $indexes = $connection->query("PRAGMA index_list(" . $this->quoteIdentifier($table) . ")");
 
         $uniqueKeys = [];
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $index) {
-            if (!is_array($index)) {
-                continue;
-            }
+        foreach ($indexes as $index) {
             $unique = $index['unique'] ?? null;
             if (!is_numeric($unique) || (int) $unique !== 1) {
                 continue;
@@ -161,16 +144,10 @@ final class SqliteDriver implements Driver
                 continue;
             }
 
-            $colStmt = $pdo->query("PRAGMA index_info(" . $this->quoteIdentifier($indexName) . ")");
-            if ($colStmt === false) {
-                continue;
-            }
+            $indexColumns = $connection->query("PRAGMA index_info(" . $this->quoteIdentifier($indexName) . ")");
 
             $cols = [];
-            foreach ($colStmt->fetchAll(PDO::FETCH_ASSOC) as $col) {
-                if (!is_array($col)) {
-                    continue;
-                }
+            foreach ($indexColumns as $col) {
                 $colName = $col['name'] ?? null;
                 if (!is_string($colName)) {
                     continue;

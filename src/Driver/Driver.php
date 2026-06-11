@@ -4,13 +4,11 @@ declare(strict_types=1);
 
 namespace Merql\Driver;
 
+use Merql\Database\DatabaseConnection;
 use Merql\Schema\TableSchema;
-use PDO;
 
 /**
  * Database driver interface. Abstracts all DB-engine-specific operations.
- *
- * Implement this for any PDO-supported database engine.
  */
 interface Driver
 {
@@ -24,19 +22,19 @@ interface Driver
      *
      * @return list<string>
      */
-    public function listTables(PDO $pdo): array;
+    public function listTables(DatabaseConnection $connection): array;
 
     /**
      * Read full schema for a table.
      */
-    public function readSchema(PDO $pdo, string $table): TableSchema;
+    public function readSchema(DatabaseConnection $connection, string $table): TableSchema;
 
     /**
      * Read foreign key dependencies.
      *
      * @return array<string, list<string>> Child table to list of parent tables.
      */
-    public function readForeignKeys(PDO $pdo): array;
+    public function readForeignKeys(DatabaseConnection $connection): array;
 
     /**
      * Build a SELECT * query for a table.

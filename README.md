@@ -35,7 +35,7 @@ Merql is a pure PHP three-way database merge engine. It takes three database sta
 - Cell-level merge for TEXT (line-by-line via Myers diff) and JSON (key-by-key) columns
 - Parameterized SQL generation with FK-aware ordering
 - Guarded apply with optimistic live-row preconditions
-- Pluggable database drivers for MySQL, SQLite, and any PDO-supported engine
+- Connection adapters for PDO and mysqli, with built-in MySQL and SQLite dialects
 
 ## Quick Start
 
@@ -47,7 +47,7 @@ composer require merql/merql
 use Merql\Connection;
 use Merql\Merql;
 
-// Initialize with any PDO connection.
+// Initialize with a MerQL connection adapter.
 Merql::init(Connection::sqlite('/path/to/db.sqlite'));
 
 // Capture database state at key points.
@@ -88,7 +88,8 @@ $rules = new IdentityRuleSet([
     'wp_options' => IdentityRule::natural(['option_name']),
 ]);
 
-$snapshotter = new Snapshotter($pdo, identityRules: $rules);
+$connection = Connection::sqlite('/path/to/db.sqlite');
+$snapshotter = new Snapshotter($connection, identityRules: $rules);
 SnapshotStore::save($snapshotter->capture('base', ['wp_options']));
 SnapshotStore::save($snapshotter->capture('ours', ['wp_options']));
 SnapshotStore::save($snapshotter->capture('theirs', ['wp_options']));
@@ -123,7 +124,8 @@ use Merql\Snapshot\Snapshotter;
 use Merql\Identity\IdentityRule;
 use Merql\Identity\IdentityRuleSet;
 
-$snapshotter = new Snapshotter($pdo, identityRules: new IdentityRuleSet([
+$connection = Connection::sqlite('/path/to/db.sqlite');
+$snapshotter = new Snapshotter($connection, identityRules: new IdentityRuleSet([
     'wp_posts' => IdentityRule::primary(['ID']),
 ]));
 
@@ -245,8 +247,8 @@ composer verify
 
 Current local verification baseline:
 
-- `226` PHPUnit tests
-- `530` assertions
+- `231` PHPUnit tests
+- `545` assertions
 - oracle regression summary `32/32`
 
 ## Features
@@ -257,7 +259,7 @@ Current local verification baseline:
 | Cell Merge | TEXT line-by-line (Myers diff via pitmaster), JSON key-by-key, custom mergers |
 | Conflicts | update/update, update/delete, delete/update, insert/insert, manual + auto resolve |
 | SQL | parameterized INSERT/UPDATE/DELETE, FK-aware ordering, guarded apply, dry-run preview, transactions |
-| Databases | MySQL, SQLite built-in, extensible to any PDO driver |
+| Databases | MySQL and SQLite dialects, PDO and mysqli connection adapters |
 | Identity | primary key, natural key, content hash, composite key support, identity rule registry |
 | Snapshot | row fingerprinting, JSON persistence, schema capture, aliased table capture, table/column/row filters |
 | Rollback | rollback plan generation, drift checks, inverse operation apply |
@@ -275,18 +277,20 @@ src/
 ├── Rollback/                  # Rollback plans, drift checks, inverse apply
 ├── CellMerge/                 # Cell-level merge (text, JSON, custom)
 ├── Apply/                     # SQL generation, dry run, FK ordering, applier
-├── Driver/                    # Database driver interface (MySQL, SQLite)
+├── Database/                  # Connection interface plus PDO and mysqli adapters
+├── Driver/                    # Database dialect interface (MySQL, SQLite)
 ├── Schema/                    # Table schema, validation, primary key resolution
 ├── Identity/                  # Row identity strategies (PK, natural key, hash)
 ├── Filter/                    # Table, column, and row filters
-├── Connection.php             # PDO connection builder
+├── Connection.php             # Connection adapter builders
 └── Exceptions/                # Typed exceptions
 ```
 
 ## Requirements
 
 - PHP 8.2+
-- `ext-pdo` (built-in on virtually every PHP install)
+- `ext-pdo` and `ext-pdo_sqlite` for the PDO adapter and SQLite builder
+- `ext-mysqli` when using the mysqli adapter
 
 ## License
 

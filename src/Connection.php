@@ -4,20 +4,15 @@ declare(strict_types=1);
 
 namespace Merql;
 
+use Merql\Database\MysqliDatabaseConnection;
+use Merql\Database\PdoDatabaseConnection;
 use PDO;
 
 /**
- * PDO connection builder. Supports any PDO-compatible database.
+ * Connection builders for supported database transports.
  */
 final class Connection
 {
-    private const PDO_OPTIONS = [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        PDO::ATTR_EMULATE_PREPARES => false,
-        PDO::ATTR_STRINGIFY_FETCHES => true,
-    ];
-
     /**
      * Build a MySQL PDO connection.
      */
@@ -28,10 +23,24 @@ final class Connection
         string $password = '',
         int $port = 3306,
         string $charset = 'utf8mb4',
-    ): PDO {
+    ): PdoDatabaseConnection {
         $dsn = "mysql:host={$host};port={$port};dbname={$database};charset={$charset}";
 
-        return new PDO($dsn, $username, $password, self::PDO_OPTIONS);
+        return self::fromDsn($dsn, $username, $password);
+    }
+
+    /**
+     * Build a MySQLi connection.
+     */
+    public static function mysqli(
+        string $host,
+        string $database,
+        string $username,
+        string $password = '',
+        int $port = 3306,
+        string $charset = 'utf8mb4',
+    ): MysqliDatabaseConnection {
+        return MysqliDatabaseConnection::connect($host, $database, $username, $password, $port, $charset);
     }
 
     /**
@@ -39,33 +48,29 @@ final class Connection
      *
      * @param string $path File path, or ':memory:' for in-memory database.
      */
-    public static function sqlite(string $path = ':memory:'): PDO
+    public static function sqlite(string $path = ':memory:'): PdoDatabaseConnection
     {
-        $pdo = new PDO("sqlite:{$path}", '', '', self::PDO_OPTIONS);
-        $pdo->exec('PRAGMA foreign_keys = ON');
+        $connection = self::fromDsn("sqlite:{$path}");
+        $connection->execute('PRAGMA foreign_keys = ON');
 
-        return $pdo;
+        return $connection;
     }
 
     /**
      * Build a PDO connection from a DSN string.
      */
-    public static function fromDsn(string $dsn, string $username = '', string $password = ''): PDO
+    public static function fromDsn(string $dsn, string $username = '', string $password = ''): PdoDatabaseConnection
     {
-        return new PDO($dsn, $username, $password, self::PDO_OPTIONS);
+        return new PdoDatabaseConnection(new PDO($dsn, $username, $password, PdoDatabaseConnection::options()));
     }
 
-    /**
-     * @deprecated Use mysql() instead.
-     */
-    public static function create(
-        string $host,
-        string $database,
-        string $username,
-        string $password = '',
-        int $port = 3306,
-        string $charset = 'utf8mb4',
-    ): PDO {
-        return self::mysql($host, $database, $username, $password, $port, $charset);
+    public static function fromPdo(PDO $pdo): PdoDatabaseConnection
+    {
+        return new PdoDatabaseConnection($pdo);
+    }
+
+    public static function fromMysqli(\mysqli $mysqli, string $charset = 'utf8mb4'): MysqliDatabaseConnection
+    {
+        return new MysqliDatabaseConnection($mysqli, $charset);
     }
 }

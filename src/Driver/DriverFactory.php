@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Merql\Driver;
 
-use PDO;
+use Merql\Database\DatabaseConnection;
 
 /**
- * Auto-detect and create the appropriate driver for a PDO connection.
+ * Auto-detect and create the appropriate driver for a connection.
  */
 final class DriverFactory
 {
@@ -20,29 +20,25 @@ final class DriverFactory
     ];
 
     /**
-     * Register a custom driver for a PDO driver name.
+     * Register a custom driver for a connection driver name.
      *
      * @param class-string<Driver> $driverClass
      */
-    public static function register(string $pdoDriver, string $driverClass): void
+    public static function register(string $connectionDriver, string $driverClass): void
     {
-        self::$drivers[$pdoDriver] = $driverClass;
+        self::$drivers[$connectionDriver] = $driverClass;
     }
 
     /**
-     * Create a driver instance based on the PDO connection's driver.
+     * Create a driver instance based on the connection's driver identity.
      */
-    public static function create(PDO $pdo): Driver
+    public static function create(DatabaseConnection $connection): Driver
     {
-        $pdoDriver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+        $connectionDriver = $connection->driverName();
 
-        if (!is_string($pdoDriver)) {
-            throw new \RuntimeException('Unable to determine PDO driver name.');
-        }
-
-        $class = self::$drivers[$pdoDriver] ?? null;
+        $class = self::$drivers[$connectionDriver] ?? null;
         if ($class === null) {
-            throw new \RuntimeException("Unsupported database driver: {$pdoDriver}");
+            throw new \RuntimeException("Unsupported database driver: {$connectionDriver}");
         }
 
         return new $class();

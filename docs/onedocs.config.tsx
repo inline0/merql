@@ -50,7 +50,7 @@ export default defineConfig({
       {
         title: "Multi-Database",
         description:
-          "Pluggable driver system with MySQL and SQLite built in. Add any PDO-supported database by implementing five methods.",
+          "Pluggable connection adapters and dialect drivers, with MySQL and SQLite built in.",
         icon: <Database className={iconClass} />,
       },
       {
@@ -74,7 +74,7 @@ export default defineConfig({
       {
         title: "Oracle-Tested",
         description:
-          "32 regression scenarios across 6 categories, 195 unit and integration tests, PHPStan level 8.",
+          "32 regression scenarios across 6 categories, unit and integration tests, PHPStan level 10.",
         icon: <FileJson className={iconClass} />,
       },
     ],

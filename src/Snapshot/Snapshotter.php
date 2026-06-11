@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Merql\Snapshot;
 
+use Merql\Database\DatabaseConnection;
 use Merql\Driver\Driver;
 use Merql\Driver\DriverFactory;
 use Merql\Exceptions\SnapshotException;
@@ -12,7 +13,6 @@ use Merql\Filter\RowFilter;
 use Merql\Filter\TableFilter;
 use Merql\Identity\IdentityRuleSet;
 use Merql\Schema\SchemaReader;
-use PDO;
 
 /**
  * Captures database state as a snapshot.
@@ -23,12 +23,12 @@ final class Snapshotter
     private readonly Driver $driver;
 
     public function __construct(
-        private readonly PDO $pdo,
+        private readonly DatabaseConnection $connection,
         ?Driver $driver = null,
         private readonly ?IdentityRuleSet $identityRules = null,
     ) {
-        $this->driver = $driver ?? DriverFactory::create($pdo);
-        $this->schemaReader = new SchemaReader($pdo, $this->driver);
+        $this->driver = $driver ?? DriverFactory::create($connection);
+        $this->schemaReader = new SchemaReader($connection, $this->driver);
     }
 
     /**
@@ -130,8 +130,7 @@ final class Snapshotter
         $identityRule = ($this->identityRules ?? new IdentityRuleSet())->ruleFor($schema);
         $identityColumns = $identityRule->columns;
 
-        $stmt = $this->pdo->query($this->driver->selectAll($tableName));
-        $allRows = $stmt !== false ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
+        $allRows = $this->connection->query($this->driver->selectAll($tableName));
 
         $fingerprints = [];
         $rows = [];
@@ -165,7 +164,7 @@ final class Snapshotter
     }
 
     /**
-     * Normalize a PDO::FETCH_ASSOC row to scalar|null values.
+     * Normalize a database row to scalar|null values.
      *
      * @return array<string, scalar|null>
      */

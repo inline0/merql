@@ -111,7 +111,7 @@ Column values are compared as strings after casting. `NULL` is a distinct value:
 - `"hello"` to `NULL` = update.
 - `"1"` to `1` = no change (both cast to the string `"1"`).
 
-This matches how PDO returns values from the database: all values come back as strings (or NULL).
+This matches MerQL connection adapter fetch semantics: all database values come back as strings (or NULL).
 
 ## Cell-level merge
 

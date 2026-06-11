@@ -6,16 +6,16 @@ namespace Merql\Rollback;
 
 use Merql\Apply\Applier;
 use Merql\Apply\ApplyResult;
+use Merql\Database\DatabaseConnection;
 use Merql\Merge\MergeResult;
 use Merql\Snapshot\Snapshot;
-use PDO;
 
 /**
  * Applies inverse operations from a rollback plan.
  */
 final class RollbackPlanApplier
 {
-    public function __construct(private readonly PDO $pdo)
+    public function __construct(private readonly DatabaseConnection $connection)
     {
     }
 
@@ -26,6 +26,6 @@ final class RollbackPlanApplier
             $plan->operations,
         );
 
-        return (new Applier($this->pdo))->apply(new MergeResult($operations, [], $base));
+        return (new Applier($this->connection))->apply(new MergeResult($operations, [], $base));
     }
 }

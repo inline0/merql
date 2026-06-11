@@ -28,11 +28,13 @@ export MERQL_DB_DSN="sqlite:/path/to/db.sqlite"
 
 ## Environment variables
 
-The CLI reads database connection details from environment variables. You can connect using either a full DSN string or individual MySQL parameters.
+The CLI reads database connection details from environment variables. You can
+connect using either a PDO DSN string or individual MySQL parameters.
 
 ### DSN-based connection
 
-Use `MERQL_DB_DSN` for any PDO-supported database. This is the recommended approach for SQLite and for non-standard configurations.
+Use `MERQL_DB_DSN` for PDO-backed connections. This is the recommended approach
+for SQLite and for non-standard configurations.
 
 | Variable | Description | Example |
 |---|---|---|
@@ -64,6 +66,7 @@ When `MERQL_DB_DSN` is not set, the CLI falls back to MySQL-specific variables.
 | `MERQL_DB_PORT` | `3306` | MySQL port |
 | `MERQL_DB_USER` | `root` | MySQL username |
 | `MERQL_DB_PASS` | (empty) | MySQL password |
+| `MERQL_DB_ADAPTER` | `pdo` | Set to `mysqli` to use the mysqli adapter |
 
 ```bash
 export MERQL_DB_NAME="wordpress"

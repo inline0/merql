@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Merql\Schema;
 
+use Merql\Database\DatabaseConnection;
 use Merql\Driver\Driver;
-use PDO;
 
 /**
  * Reads table schemas using the appropriate database driver.
@@ -13,14 +13,14 @@ use PDO;
 final class SchemaReader
 {
     public function __construct(
-        private readonly PDO $pdo,
+        private readonly DatabaseConnection $connection,
         private readonly Driver $driver,
     ) {
     }
 
     public function read(string $table): TableSchema
     {
-        return $this->driver->readSchema($this->pdo, $table);
+        return $this->driver->readSchema($this->connection, $table);
     }
 
     /**
@@ -28,6 +28,6 @@ final class SchemaReader
      */
     public function listTables(): array
     {
-        return $this->driver->listTables($this->pdo);
+        return $this->driver->listTables($this->connection);
     }
 }
