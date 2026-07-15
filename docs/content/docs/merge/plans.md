@@ -1,6 +1,11 @@
 ---
-title: Merge Plans
-description: Build UI-ready merge plans with stable operation IDs, change groups, selections, and JSON serialization.
+title: "Merge Plans"
+description: "Build UI-ready merge plans with stable operation IDs, change groups, selections, and JSON serialization."
+path: "merge/plans"
+order: 5
+section: "Merge"
+meta_title: "Merge Plans"
+meta_description: "Build UI-ready merge plans with stable operation IDs, change groups, selections, and JSON serialization."
 ---
 
 # Merge Plans

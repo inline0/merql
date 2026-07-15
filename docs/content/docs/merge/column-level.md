@@ -1,6 +1,11 @@
 ---
-title: Column-Level Merge
-description: How merql merges rows at the column level to avoid false conflicts when different columns are edited.
+title: "Column-Level Merge"
+description: "How merql merges rows at the column level to avoid false conflicts when different columns are edited."
+path: "merge/column-level"
+order: 6
+section: "Merge"
+meta_title: "Column-Level Merge"
+meta_description: "How merql merges rows at the column level to avoid false conflicts when different columns are edited."
 ---
 
 # Column-Level Merge

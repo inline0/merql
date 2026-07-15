@@ -1,6 +1,11 @@
 ---
-title: Getting Started
-description: Install merql, capture your first snapshot, compute a diff, and perform a three-way merge.
+title: "Getting Started"
+description: "Install merql, capture your first snapshot, compute a diff, and perform a three-way merge."
+path: "getting-started"
+order: 1
+section: "Documentation"
+meta_title: "Getting Started"
+meta_description: "Install merql, capture your first snapshot, compute a diff, and perform a three-way merge."
 ---
 
 # Getting Started

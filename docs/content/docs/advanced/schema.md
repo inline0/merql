@@ -1,6 +1,11 @@
 ---
-title: Schema Validation
-description: How merql detects and reports schema differences between snapshots.
+title: "Schema Validation"
+description: "How merql detects and reports schema differences between snapshots."
+path: "advanced/schema"
+order: 16
+section: "Advanced"
+meta_title: "Schema Validation"
+meta_description: "How merql detects and reports schema differences between snapshots."
 ---
 
 # Schema Validation

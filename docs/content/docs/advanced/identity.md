@@ -1,6 +1,11 @@
 ---
-title: Row Identity
-description: How merql determines which rows are "the same" across snapshots using primary keys, natural keys, explicit rules, and content hashes.
+title: "Row Identity"
+description: "How merql determines which rows are \"the same\" across snapshots using primary keys, natural keys, explicit rules, and content hashes."
+path: "advanced/identity"
+order: 14
+section: "Advanced"
+meta_title: "Row Identity"
+meta_description: "How merql determines which rows are \"the same\" across snapshots using primary keys, natural keys, explicit rules, and content hashes."
 ---
 
 # Row Identity

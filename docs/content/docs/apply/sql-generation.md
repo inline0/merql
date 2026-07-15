@@ -1,6 +1,11 @@
 ---
-title: SQL Generation
-description: How merql generates parameterized SQL from merge results, with foreign key ordering and NULL handling.
+title: "SQL Generation"
+description: "How merql generates parameterized SQL from merge results, with foreign key ordering and NULL handling."
+path: "apply/sql-generation"
+order: 9
+section: "Apply"
+meta_title: "SQL Generation"
+meta_description: "How merql generates parameterized SQL from merge results, with foreign key ordering and NULL handling."
 ---
 
 # SQL Generation

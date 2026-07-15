@@ -1,6 +1,11 @@
 ---
-title: Guarded Apply
-description: Apply merge results with optimistic live-row preconditions so stale plans abort before partial writes.
+title: "Guarded Apply"
+description: "Apply merge results with optimistic live-row preconditions so stale plans abort before partial writes."
+path: "apply/guarded"
+order: 10
+section: "Apply"
+meta_title: "Guarded Apply"
+meta_description: "Apply merge results with optimistic live-row preconditions so stale plans abort before partial writes."
 ---
 
 # Guarded Apply

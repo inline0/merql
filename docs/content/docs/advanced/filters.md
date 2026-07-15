@@ -1,6 +1,11 @@
 ---
-title: Filters
-description: Exclude tables, ignore columns, and filter rows during snapshot capture.
+title: "Filters"
+description: "Exclude tables, ignore columns, and filter rows during snapshot capture."
+path: "advanced/filters"
+order: 15
+section: "Advanced"
+meta_title: "Filters"
+meta_description: "Exclude tables, ignore columns, and filter rows during snapshot capture."
 ---
 
 # Filters
