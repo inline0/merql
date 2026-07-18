@@ -2,7 +2,7 @@
 title: "Filters"
 description: "Exclude tables, ignore columns, and filter rows during snapshot capture."
 path: "advanced/filters"
-order: 15
+order: 140
 section: "Advanced"
 meta_title: "Filters"
 meta_description: "Exclude tables, ignore columns, and filter rows during snapshot capture."

@@ -2,8 +2,8 @@
 title: "API"
 description: "Complete PHP API reference for merql. Covers the facade, snapshotter, differ, merge engine, applier, cell mergers, drivers, filters, and exceptions."
 path: "api"
-order: 3
-section: "Documentation"
+order: 180
+section: "Reference"
 meta_title: "API"
 meta_description: "Complete PHP API reference for merql. Covers the facade, snapshotter, differ, merge engine, applier, cell mergers, drivers, filters, and exceptions."
 ---

@@ -2,7 +2,7 @@
 title: "Testing Strategy"
 description: "Oracle-driven testing, scenario categories, and how to verify merge correctness."
 path: "advanced/testing"
-order: 17
+order: 160
 section: "Advanced"
 meta_title: "Testing Strategy"
 meta_description: "Oracle-driven testing, scenario categories, and how to verify merge correctness."

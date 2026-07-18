@@ -2,7 +2,7 @@
 title: "Cell-Level Merge"
 description: "Merge within individual cells using text line-by-line diff and JSON key-by-key merge."
 path: "merge/cell-level"
-order: 7
+order: 60
 section: "Merge"
 meta_title: "Cell-Level Merge"
 meta_description: "Merge within individual cells using text line-by-line diff and JSON key-by-key merge."

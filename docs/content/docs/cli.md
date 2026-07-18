@@ -2,8 +2,8 @@
 title: "CLI"
 description: "Full reference for the merql command-line interface. Snapshot, diff, and merge databases from the terminal."
 path: "cli"
-order: 2
-section: "Documentation"
+order: 170
+section: "Reference"
 meta_title: "CLI"
 meta_description: "Full reference for the merql command-line interface. Snapshot, diff, and merge databases from the terminal."
 ---

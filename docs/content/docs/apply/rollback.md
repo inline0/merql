@@ -2,7 +2,7 @@
 title: "Rollback"
 description: "Generate rollback plans from selected merge operations, validate drift, and apply inverse operations."
 path: "apply/rollback"
-order: 11
+order: 100
 section: "Apply"
 meta_title: "Rollback"
 meta_description: "Generate rollback plans from selected merge operations, validate drift, and apply inverse operations."

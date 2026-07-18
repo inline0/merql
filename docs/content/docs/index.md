@@ -2,8 +2,8 @@
 title: "General"
 description: "Pure PHP three-way database merge with column-level conflict resolution. Git-style merge semantics applied to relational data."
 path: "."
-order: 0
-section: "Documentation"
+order: 10
+section: "Getting Started"
 meta_title: "General"
 meta_description: "Pure PHP three-way database merge with column-level conflict resolution. Git-style merge semantics applied to relational data."
 ---

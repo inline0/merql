@@ -2,7 +2,7 @@
 title: "Three-Way Merge"
 description: "How merql computes changesets from three database states and merges them using git-style rules."
 path: "merge/three-way"
-order: 4
+order: 30
 section: "Merge"
 meta_title: "Three-Way Merge"
 meta_description: "How merql computes changesets from three database states and merges them using git-style rules."

@@ -2,8 +2,8 @@
 title: "Getting Started"
 description: "Install merql, capture your first snapshot, compute a diff, and perform a three-way merge."
 path: "getting-started"
-order: 1
-section: "Documentation"
+order: 20
+section: "Getting Started"
 meta_title: "Getting Started"
 meta_description: "Install merql, capture your first snapshot, compute a diff, and perform a three-way merge."
 ---

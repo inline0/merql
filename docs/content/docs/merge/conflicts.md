@@ -2,7 +2,7 @@
 title: "Conflict Handling"
 description: "How merql detects, reports, and resolves merge conflicts at the column level."
 path: "merge/conflicts"
-order: 8
+order: 70
 section: "Merge"
 meta_title: "Conflict Handling"
 meta_description: "How merql detects, reports, and resolves merge conflicts at the column level."

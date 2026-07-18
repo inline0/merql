@@ -2,7 +2,7 @@
 title: "Guarded Apply"
 description: "Apply merge results with optimistic live-row preconditions so stale plans abort before partial writes."
 path: "apply/guarded"
-order: 10
+order: 90
 section: "Apply"
 meta_title: "Guarded Apply"
 meta_description: "Apply merge results with optimistic live-row preconditions so stale plans abort before partial writes."

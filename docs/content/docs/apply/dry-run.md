@@ -2,7 +2,7 @@
 title: "Dry Run Preview"
 description: "Preview the SQL a merge would generate without executing it."
 path: "apply/dry-run"
-order: 12
+order: 110
 section: "Apply"
 meta_title: "Dry Run Preview"
 meta_description: "Preview the SQL a merge would generate without executing it."
