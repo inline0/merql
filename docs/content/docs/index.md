@@ -1,14 +1,13 @@
 ---
-title: "General"
+title: "Introduction"
 description: "Pure PHP three-way database merge with column-level conflict resolution. Git-style merge semantics applied to relational data."
 path: "."
 order: 10
-section: "Getting Started"
-meta_title: "General"
+meta_title: "Introduction"
 meta_description: "Pure PHP three-way database merge with column-level conflict resolution. Git-style merge semantics applied to relational data."
 ---
 
-# merql
+# Introduction
 
 merql is a pure PHP library that performs three-way merges on database state. It snapshots tables, computes changesets between snapshots, merges two sets of changes against a common base, and detects conflicts at the column level. The same algorithm git uses for source files, applied to rows and columns instead of lines.
 
