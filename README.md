@@ -1,8 +1,8 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./docs/public/logo-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="./docs/public/logo-light.svg">
-    <img alt="Merql" src="./docs/public/logo-light.svg" height="56">
+    <source media="(prefers-color-scheme: dark)" srcset="./.github/logo-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="./.github/logo-light.svg">
+    <img alt="Merql" src="./.github/logo-light.svg" height="56">
   </picture>
 </p>
 
@@ -208,12 +208,10 @@ vendor/bin/merql merge base ours theirs --dry-run
 
 ## Documentation
 
-The repo includes a dedicated docs app under [`docs/`](docs) that mirrors the same release/docs structure used in sibling projects.
+The portable Markdown documentation lives under [`docs/`](docs), with `meta.json` files describing the navigation.
 
 ```bash
-cd docs
-npm install
-npm run dev
+node scripts/check-docs-content.mjs
 ```
 
 Topics covered:
