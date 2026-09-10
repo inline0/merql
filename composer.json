@@ -35,9 +35,9 @@
         "ext-mysqli": "*",
         "ext-pdo": "*",
         "ext-pdo_sqlite": "*",
-        "phpstan/phpstan": "^2.0",
+        "phpstan/phpstan": "^2.1",
         "phpunit/phpunit": "^13.1",
-        "squizlabs/php_codesniffer": "^3.11"
+        "squizlabs/php_codesniffer": "^3.13"
     },
     "suggest": {
         "ext-pdo": "Required when using the PDO connection adapter.",
@@ -55,7 +55,8 @@
     },
     "config": {
         "optimize-autoloader": true,
-        "sort-packages": true
+        "sort-packages": true,
+        "process-timeout": 0
     },
     "bin": [
         "bin/merql"
