@@ -29,7 +29,7 @@
     ],
     "require": {
         "php": "^8.2",
-        "pitmaster/pitmaster": "^0.2.4"
+        "pitmaster/pitmaster": "^0.2.10"
     },
     "require-dev": {
         "ext-mysqli": "*",
