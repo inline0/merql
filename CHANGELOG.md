@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.4.1] - 2026-09-24
+
+### Fixed
+
+- `vendor/bin/merql` works when merql is installed as a dependency. The binary
+  only looked for the autoloader in its own `vendor/`.
+- The Composer package no longer ships `scenarios/`, tests, docs or
+  development scripts, taking it from 2.7 MB to 69 KB.
+
+### Changed
+
+- Requires `pitmaster/pitmaster` `^0.2.10`, the first release that stops
+  shipping about 236 MB of test scenarios into consumers' `vendor/`.
+- Documentation rewritten as portable Markdown in `docs/`.
+- Development dependencies raised to the inline0 canonical minimums,
+  including `squizlabs/php_codesniffer` `^3.13.6` for CVE-2026-67434. Dev
+  only, no effect on consumers.
+
 ## [0.4.0] - 2026-06-11
 
 ### Added
