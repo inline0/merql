@@ -28,7 +28,7 @@ Merql::init($connection, identityRules: new IdentityRuleSet([
 ]));
 ```
 
-### `init(DatabaseConnection $connection, ?Driver $driver = null, ?IdentityRuleSet $identityRules = null): void`
+### `init(DatabaseConnection $connection, ?Driver $driver = null, ?IdentityRuleSet $identityRules = null, ?CellMergeConfig $cellMergeConfig = null): void`
 
 Initialize the facade with a database connection. Must be called before
 `snapshot()`, `apply()`, or `applyGuarded()`; call it again to switch databases,
@@ -36,6 +36,7 @@ for example to snapshot ours and theirs from two different copies. Without a
 `$driver`, it calls `DriverFactory::create()`, which throws for engines other
 than MySQL and SQLite unless a driver is registered. Pass a driver to override auto-detection, or an
 identity rule set to override per-table row identity during snapshot capture.
+The optional `cellMergeConfig` configures subsequent merge, patch, and plan calls.
 
 ### `snapshot(string $name, array $tables = []): Snapshot`
 
@@ -54,17 +55,18 @@ Load two named snapshots and compute the changeset between them. Does not requir
 $changeset = Merql::diff('before', 'after');
 ```
 
-### `merge(string $base, string $ours, string $theirs): MergeResult`
+### `merge(string $base, string $ours, string $theirs, ?CellMergeConfig $cellMergeConfig = null): MergeResult`
 
-Three-way merge of three named snapshots. Returns a result containing clean operations and any conflicts. Merges at the column level: the facade constructs `ThreeWayMerge` without a `CellMergeConfig`, so cell-level merge is not applied. Use [`ThreeWayMerge`](#threewaymerge) directly for that.
+Three-way merge of three named snapshots. Returns a result containing clean operations and any conflicts. Uses the supplied `CellMergeConfig`, or the default configured by `init()`.
+Without one, it merges at the column level.
 
 ```php
 $result = Merql::merge('base', 'ours', 'theirs');
 ```
 
-### `patch(string $base, string $changes): MergeResult`
+### `patch(string $base, string $changes, ?CellMergeConfig $cellMergeConfig = null): MergeResult`
 
-Two-way merge: apply changes onto base. Equivalent to `merge($base, $base, $changes)`. Always produces a clean result because there are no concurrent edits. Column level only, like `merge()`.
+Two-way merge: apply changes onto base. Equivalent to `merge($base, $base, $changes)`. Always produces a clean result because there are no concurrent edits. Accepts the same optional cell merge configuration as `merge()`.
 
 ```php
 $result = Merql::patch('base', 'changes');
@@ -81,13 +83,12 @@ $applied = Merql::apply($result);
 echo $applied->rowsAffected();
 ```
 
-### `plan(string $id, string $base, string $ours, string $theirs, array $metadata = []): MergePlan`
+### `plan(string $id, string $base, string $ours, string $theirs, array $metadata = [], ?CellMergeConfig $cellMergeConfig = null): MergePlan`
 
 Build a UI-ready merge plan from three named snapshots. The plan includes stable
 operation IDs, change group IDs, operation context, conflicts, schema
-mismatches, a summary, metadata, and a plan hash. The merge is column level, as
-in `merge()`; pass a cell-merged result to `MergePlanBuilder::build()` for
-cell-level merge.
+mismatches, a summary, metadata, and a plan hash. It uses the supplied
+`CellMergeConfig`, or the default configured by `init()`, like `merge()`.
 
 ```php
 $plan = Merql::plan('plan-1', 'base', 'ours', 'theirs', [
@@ -747,7 +748,8 @@ $applied->errors();               // list<string>
 $applied->hasErrors();            // bool
 ```
 
-After a rolled-back apply, `rowsAffected()` still counts the statements that ran before the failure ([#4](https://github.com/inline0/merql/issues/4)). Check `hasErrors()` before trusting the count.
+After a rolled-back apply, `rowsAffected()` is 0 because no writes committed.
+Check `hasErrors()` for the failure details.
 
 ---
 

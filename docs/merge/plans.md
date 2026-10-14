@@ -119,8 +119,9 @@ $selectedResult = (new SelectedMergeResultFactory())->fromOperationSelection(
 );
 ```
 
-The selected result is a clean `MergeResult` that contains only selected
-operations. It can be passed to `Merql::apply()` or `Merql::applyGuarded()`.
+The selected result contains only selected operations and retains unresolved
+conflicts for their rows. Clean selections can be passed to `Merql::apply()` or
+`Merql::applyGuarded()`; conflicted selections are rejected.
 
 ## Selecting What A Target Is Missing
 
@@ -163,10 +164,10 @@ deleted), are already present in that target.
 
 A plan built from a merge with conflicts still lists an operation for each
 conflicted row that both sides updated. Its result values hold ours' value in
-the conflicting column, and `SelectedMergeResultFactory` returns a clean result
-for any selection. The operation's and change group's `conflictState` currently
-read `clean` even then ([#9](https://github.com/inline0/merql/issues/9)), so
-check `$plan->conflicts` yourself as above, or resolve conflicts with
+the conflicting column. Both the operation and its change group report
+`conflictState = 'conflicted'`, and `SelectedMergeResultFactory` preserves the
+conflicts if they are selected. Keep them out of the selection as above, or
+resolve conflicts with
 `ConflictResolver` and build the plan from the resolved result with
 `MergePlanBuilder`. See
 [Guarded Apply](/docs/apply/guarded) for writing the selection with live-row

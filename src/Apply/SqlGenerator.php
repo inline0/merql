@@ -12,6 +12,12 @@ use Merql\Snapshot\Snapshotter;
 
 /**
  * Generates parameterized SQL statements from a merge result.
+ *
+ * @phpstan-type GuardedStatement array{
+ *     sql: string,
+ *     params: list<scalar|null>,
+ *     precondition?: array{sql: string, params: list<scalar|null>}
+ * }
  */
 final class SqlGenerator
 {
@@ -77,7 +83,7 @@ final class SqlGenerator
      * Generate SQL statements with optimistic live-row preconditions.
      *
      * @param array<string, list<string>> $fkDependencies FK dependency map.
-     * @return list<array{sql: string, params: list<scalar|null>}>
+     * @return list<GuardedStatement>
      */
     public static function generateGuarded(
         MergeResult $result,
@@ -216,7 +222,7 @@ final class SqlGenerator
 
     /**
      * @param \Closure(string): string $q Identifier quoter.
-     * @return array{sql: string, params: list<scalar|null>}|null
+     * @return GuardedStatement|null
      */
     private static function generateGuardedUpdate(
         MergeOperation $op,
@@ -252,7 +258,14 @@ final class SqlGenerator
             implode(' AND ', $whereClauses),
         );
 
-        return ['sql' => $sql, 'params' => array_merge($params, $identityParams, $expectedParams)];
+        return [
+            'sql' => $sql,
+            'params' => array_merge($params, $identityParams, $expectedParams),
+            'precondition' => [
+                'sql' => sprintf('SELECT 1 FROM %s WHERE %s LIMIT 1', $q($op->table), implode(' AND ', $whereClauses)),
+                'params' => array_merge($identityParams, $expectedParams),
+            ],
+        ];
     }
 
     /**

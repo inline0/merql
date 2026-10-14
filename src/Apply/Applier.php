@@ -52,6 +52,7 @@ final class Applier
             $this->connection->commit();
         } catch (\Throwable $e) {
             $this->connection->rollBack();
+            $totalAffected = 0;
             $errors[] = $e->getMessage();
         }
 

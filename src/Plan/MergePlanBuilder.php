@@ -28,8 +28,13 @@ final class MergePlanBuilder
         ?int $createdAt = null,
     ): MergePlan {
         $operations = [];
+        $conflictedRows = [];
+        foreach ($result->conflicts() as $conflict) {
+            $conflictedRows[$conflict->table()][$conflict->rowKey()] = true;
+        }
         foreach ($result->operations() as $operation) {
-            $operations[] = $this->operation($operation, $base, $ours, $theirs);
+            $state = isset($conflictedRows[$operation->table][$operation->rowKey]) ? 'conflicted' : 'clean';
+            $operations[] = $this->operation($operation, $base, $ours, $theirs, $state);
         }
 
         $conflicts = array_map(
@@ -92,6 +97,7 @@ final class MergePlanBuilder
         Snapshot $base,
         Snapshot $ours,
         Snapshot $theirs,
+        string $conflictState,
     ): MergePlanOperation {
         $baseTable = $base->getTable($operation->table);
         $oursTable = $ours->getTable($operation->table);
@@ -125,6 +131,7 @@ final class MergePlanBuilder
             $theirsRow,
             $operation->values,
             $changedColumns,
+            $conflictState,
         );
     }
 
@@ -203,6 +210,7 @@ final class MergePlanBuilder
             [$operation->id],
             [$operation->table],
             $counts,
+            conflictState: $operation->conflictState,
         );
     }
 

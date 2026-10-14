@@ -13,6 +13,11 @@ use Merql\Tests\Oracle\ScenarioRunner;
 $opts = getopt('', ['category:', 'fast', 'jobs:']);
 $category = $opts['category'] ?? null;
 $fast = isset($opts['fast']);
+$jobs = filter_var($opts['jobs'] ?? 1, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+if ($jobs === false) {
+    fwrite(STDERR, "--jobs must be a positive integer.\n");
+    exit(2);
+}
 
 $repo = new ScenarioRepository();
 
@@ -33,7 +38,7 @@ if ($scenarios === []) {
 
 $passed = 0;
 $failed = 0;
-$results = ScenarioRunner::runAll($scenarios);
+$results = ScenarioRunner::runAll($scenarios, $jobs);
 
 foreach ($results as $result) {
     if ($result['pass']) {

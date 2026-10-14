@@ -176,7 +176,7 @@ if ($applied->hasErrors()) {
 }
 ```
 
-The applier wraps all operations in a transaction. If any statement fails, the entire merge is rolled back and the error is returned in `errors()`. In that case `rowsAffected()` still counts the statements that ran before the failure, even though they were rolled back ([#4](https://github.com/inline0/merql/issues/4)); check `hasErrors()` first.
+The applier wraps all operations in a transaction. If any statement fails, the entire merge is rolled back, `rowsAffected()` returns 0, and the error is returned in `errors()`. Check `hasErrors()` before treating an apply as successful.
 
 ## Dry run
 

@@ -76,15 +76,14 @@ Guarded SQL adds live-row preconditions to generated statements:
   values to match the expected live row,
 - inserts require that the target identity does not already exist.
 
-If any statement affects zero rows, merql treats the plan as stale. The
-transaction is rolled back and the returned `ApplyResult` contains the error
-`Optimistic precondition failed for guarded merge statement.`
+If an update affects zero rows, merql checks whether its live-row precondition
+still matches. On MySQL this is a locking read, so an unchanged matching row
+succeeds without confusing a previous transaction snapshot with current data.
+Drifted or missing rows still fail. Zero-row inserts and deletes also fail.
 
-On MySQL, an update whose values already equal the live row also affects zero
-rows, because MySQL counts changed rows rather than matched rows. Such an
-update fails as stale even though the row matches ([#2](https://github.com/inline0/merql/issues/2)).
-SQLite counts matched rows and accepts it. This can happen with a `merged`
-update when both sides made the same change to a row.
+Any failed precondition rolls the transaction back. `rowsAffected()` then
+returns 0 and the result contains
+`Optimistic precondition failed for guarded merge statement.`
 
 ## Choosing operations
 

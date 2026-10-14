@@ -6,6 +6,8 @@ namespace Merql\Tests\Unit\Apply;
 
 use Merql\Apply\GuardedApplier;
 use Merql\Connection;
+use Merql\Database\DatabaseConnection;
+use Merql\Driver\Driver;
 use Merql\Exceptions\ConflictException;
 use Merql\Merge\Conflict;
 use Merql\Merge\MergeOperation;
@@ -63,6 +65,35 @@ final class GuardedApplierTest extends TestCase
 
         $this->assertTrue($result->hasErrors());
         $this->assertSame('Someone else', $pdo->query('SELECT title FROM posts WHERE id = 1')->fetchColumn());
+    }
+
+    #[Test]
+    public function unchanged_mysql_rows_are_checked_with_a_locking_read(): void
+    {
+        $connection = $this->createMock(DatabaseConnection::class);
+        $connection->method('driverName')->willReturn('mysql');
+        $connection->method('execute')->willReturn(0);
+        $connection->expects($this->once())->method('scalar')->with(
+            'SELECT 1 FROM `posts` WHERE `id` = ? AND `title` = ? LIMIT 1 FOR UPDATE',
+            ['1', 'Hello'],
+        )->willReturn('1');
+        $connection->expects($this->once())->method('commit');
+        $connection->expects($this->never())->method('rollBack');
+        $driver = $this->createStub(Driver::class);
+        $driver->method('quoteIdentifier')->willReturnCallback(static fn(string $name): string => '`' . $name . '`');
+        $expected = Snapshotter::fromData('live', [
+            'posts' => new TableSnapshotData(
+                new TableSchema('posts', ['id' => 'int', 'title' => 'text'], ['id']),
+                [['id' => '1', 'title' => 'Hello']],
+                ['id'],
+            ),
+        ]);
+        $merge = new MergeResult([
+            new MergeOperation(MergeOperation::TYPE_UPDATE, 'posts', '1', ['id' => '1', 'title' => 'Hello']),
+        ]);
+        $applied = (new GuardedApplier($connection, $driver))->apply($merge, $expected);
+        self::assertFalse($applied->hasErrors());
+        self::assertSame(0, $applied->rowsAffected());
     }
 
     #[Test]

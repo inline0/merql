@@ -13,6 +13,7 @@ use Merql\Diff\Differ;
 use Merql\Driver\Driver;
 use Merql\Identity\IdentityRuleSet;
 use Merql\Merge\MergeResult;
+use Merql\CellMerge\CellMergeConfig;
 use Merql\Plan\MergePlan;
 use Merql\Plan\MergePlanBuilder;
 use Merql\Merge\ThreeWayMerge;
@@ -27,14 +28,17 @@ final class Merql
 {
     private static ?DatabaseConnection $connection = null;
     private static ?Snapshotter $snapshotter = null;
+    private static ?CellMergeConfig $cellMergeConfig = null;
 
     public static function init(
         DatabaseConnection $connection,
         ?Driver $driver = null,
         ?IdentityRuleSet $identityRules = null,
+        ?CellMergeConfig $cellMergeConfig = null,
     ): void {
         self::$connection = $connection;
         self::$snapshotter = new Snapshotter($connection, $driver, $identityRules);
+        self::$cellMergeConfig = $cellMergeConfig;
     }
 
     /**
@@ -69,13 +73,17 @@ final class Merql
     /**
      * Three-way merge of named snapshots.
      */
-    public static function merge(string $base, string $ours, string $theirs): MergeResult
-    {
+    public static function merge(
+        string $base,
+        string $ours,
+        string $theirs,
+        ?CellMergeConfig $cellMergeConfig = null,
+    ): MergeResult {
         $baseSnapshot = SnapshotStore::load($base);
         $oursSnapshot = SnapshotStore::load($ours);
         $theirsSnapshot = SnapshotStore::load($theirs);
 
-        $merge = new ThreeWayMerge();
+        $merge = new ThreeWayMerge($cellMergeConfig ?? self::$cellMergeConfig);
 
         return $merge->merge($baseSnapshot, $oursSnapshot, $theirsSnapshot);
     }
@@ -84,12 +92,12 @@ final class Merql
      * Two-way merge: apply changes from another snapshot onto base.
      * Equivalent to merge(base, base, changes) - ours is unchanged.
      */
-    public static function patch(string $base, string $changes): MergeResult
+    public static function patch(string $base, string $changes, ?CellMergeConfig $cellMergeConfig = null): MergeResult
     {
         $baseSnapshot = SnapshotStore::load($base);
         $changesSnapshot = SnapshotStore::load($changes);
 
-        $merge = new ThreeWayMerge();
+        $merge = new ThreeWayMerge($cellMergeConfig ?? self::$cellMergeConfig);
 
         return $merge->merge($baseSnapshot, $baseSnapshot, $changesSnapshot);
     }
@@ -118,12 +126,13 @@ final class Merql
         string $ours,
         string $theirs,
         array $metadata = [],
+        ?CellMergeConfig $cellMergeConfig = null,
     ): MergePlan {
         $baseSnapshot = SnapshotStore::load($base);
         $oursSnapshot = SnapshotStore::load($ours);
         $theirsSnapshot = SnapshotStore::load($theirs);
 
-        $merge = new ThreeWayMerge();
+        $merge = new ThreeWayMerge($cellMergeConfig ?? self::$cellMergeConfig);
         $result = $merge->merge($baseSnapshot, $oursSnapshot, $theirsSnapshot);
 
         return (new MergePlanBuilder())->build(
@@ -154,6 +163,7 @@ final class Merql
     {
         self::$connection = null;
         self::$snapshotter = null;
+        self::$cellMergeConfig = null;
     }
 
     private static function requireInit(): void

@@ -78,8 +78,8 @@ Categories are the directory names under `scenarios/`: `clean`, `conflict`,
 `No scenarios found` and exits successfully. `--category` can be repeated to run
 several categories.
 
-The script also accepts `--jobs`, but it ignores the value and runs scenarios
-one after another ([#5](https://github.com/inline0/merql/issues/5)).
+Use `--jobs 4` to run up to four isolated PHP workers. Results retain scenario
+order, and a failing worker fails the run. The job count must be a positive integer.
 
 Run with minimal output (pass/fail only):
 
@@ -113,10 +113,9 @@ composer test:oracle       # Oracle regression corpus (bin/test-regression)
 composer verify            # analyse + cs + test + test:oracle
 ```
 
-`composer test` runs PHPUnit only. The `oracle` PHPUnit suite points at
-`tests/Oracle`, which holds the scenario runner classes but no test cases, so
-the 32 scenarios run only through `composer test:oracle`, `composer verify`, or
-`./bin/verify-all`.
+`composer test` runs PHPUnit followed by all 32 oracle scenarios in four
+isolated workers. `composer test:oracle` runs the scenario corpus on its own;
+`composer verify` and `./bin/verify-all` remain the full release gates.
 
 The MySQL integration tests are skipped unless `MERQL_MYSQL_HOST`,
 `MERQL_MYSQL_DATABASE`, and `MERQL_MYSQL_USER` (plus optionally
@@ -289,7 +288,5 @@ The `verify-all` script runs all four checks in sequence. No partial sign-off is
 
 CI runs coding standards, PHPStan, `composer test`, the integration suite
 against MySQL 8.4 through mysqli, merge primitive coverage, and
-`composer audit` on every push and pull request to `main`. It does not run the
-oracle regression corpus ([#6](https://github.com/inline0/merql/issues/6)), so
-run `composer test:oracle` or `./bin/verify-all` locally before relying on a
-change.
+`composer audit` on every push and pull request to `main`. `composer test`
+includes the complete oracle regression corpus, so a scenario failure fails CI.

@@ -21,9 +21,14 @@ use Merql\Apply\DryRun;
 use Merql\Connection;
 use Merql\Database\DatabaseConnection;
 use Merql\Merql;
+use Merql\CellMerge\CellMergeConfig;
 use Merql\Snapshot\SnapshotStore;
 
 $command = $argv[1] ?? null;
+$snapshotDirectory = getenv('MERQL_SNAPSHOT_DIR');
+if ($snapshotDirectory !== false && $snapshotDirectory !== '') {
+    SnapshotStore::setDirectory($snapshotDirectory);
+}
 
 if ($command === null) {
     echo "Usage: merql <command> [options]\n\n";
@@ -31,15 +36,22 @@ if ($command === null) {
     echo "  snapshot <name>              Capture current database state\n";
     echo "  diff <base> <current>        Show changeset between two snapshots\n";
     echo "  merge <base> <ours> <theirs> Three-way merge\n";
+    echo "  merge options: --dry-run, --cell-merge\n";
+    echo "\nSet MERQL_SNAPSHOT_DIR to choose the snapshot directory.\n";
     exit(0);
 }
 
-match ($command) {
-    'snapshot' => cmdSnapshot($argv),
-    'diff' => cmdDiff($argv),
-    'merge' => cmdMerge($argv),
-    default => fprintf(STDERR, "Unknown command: %s\n", $command) ?: exit(1),
-};
+try {
+    match ($command) {
+        'snapshot' => cmdSnapshot($argv),
+        'diff' => cmdDiff($argv),
+        'merge' => cmdMerge($argv),
+        default => throw new RuntimeException('Unknown command: ' . $command),
+    };
+} catch (Throwable $error) {
+    fwrite(STDERR, $error->getMessage() . "\n");
+    exit(1);
+}
 
 function cmdSnapshot(array $argv): void
 {
@@ -80,13 +92,14 @@ function cmdMerge(array $argv): void
     $ours = $argv[3] ?? null;
     $theirs = $argv[4] ?? null;
     $dryRun = in_array('--dry-run', $argv, true);
+    $cellMerge = in_array('--cell-merge', $argv, true);
 
     if ($base === null || $ours === null || $theirs === null) {
-        fprintf(STDERR, "Usage: merql merge <base> <ours> <theirs> [--dry-run]\n");
+        fprintf(STDERR, "Usage: merql merge <base> <ours> <theirs> [--dry-run] [--cell-merge]\n");
         exit(1);
     }
 
-    $result = Merql::merge($base, $ours, $theirs);
+    $result = Merql::merge($base, $ours, $theirs, $cellMerge ? CellMergeConfig::auto() : null);
 
     echo "Merge: {$base} + {$ours} + {$theirs}\n";
     echo "  Operations: {$result->operationCount()}\n";

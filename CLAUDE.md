@@ -290,6 +290,7 @@ merql/
 
 ```php
 Merql::init(DatabaseConnection $connection);                  // Initialize with database connection
+Merql::init($connection, cellMergeConfig: CellMergeConfig::auto()); // Opt into text/JSON cell merge
 Merql::snapshot(string $name, array $tables = []);            // Capture current state
 Merql::diff(string $base, string $current): Changeset;       // Compute changeset
 Merql::merge(string $base, string $ours, string $theirs): MergeResult;

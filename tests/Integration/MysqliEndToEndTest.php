@@ -67,6 +67,49 @@ final class MysqliEndToEndTest extends TestCase
         }
     }
 
+    #[Test]
+    public function unchanged_guarded_updates_succeed_but_drift_and_missing_rows_fail(): void
+    {
+        $mysqli = $this->mysqliConnection();
+        if ($mysqli === null) {
+            $this->markTestSkipped('Set MERQL_MYSQL_* env vars to run MySQL no-op update tests.');
+        }
+        $connections = [$mysqli];
+        if (extension_loaded('pdo_mysql')) {
+            $connections[] = Connection::mysql(
+                getenv('MERQL_MYSQL_HOST') ?: '127.0.0.1',
+                getenv('MERQL_MYSQL_DATABASE') ?: '',
+                getenv('MERQL_MYSQL_USER') ?: '',
+                getenv('MERQL_MYSQL_PASSWORD') ?: '',
+                (int) (getenv('MERQL_MYSQL_PORT') ?: '3306'),
+            );
+        }
+        foreach ($connections as $connection) {
+            $table = 'merql_noop_' . bin2hex(random_bytes(4));
+            $connection->execute("CREATE TABLE {$table} (id INT PRIMARY KEY, title VARCHAR(128) NULL)");
+            try {
+                $connection->execute("INSERT INTO {$table} VALUES (1, 'original')");
+                $snapshots = new Snapshotter($connection);
+                $base = $snapshots->capture('base', [$table]);
+                $connection->execute("UPDATE {$table} SET title = NULL WHERE id = 1");
+                $live = $snapshots->capture('live', [$table]);
+                $merge = (new ThreeWayMerge())->merge($base, $live, $live);
+                $applier = new GuardedApplier($connection);
+                self::assertFalse($applier->apply($merge, $live)->hasErrors());
+
+                $connection->execute("UPDATE {$table} SET title = 'drift' WHERE id = 1");
+                $drifted = $applier->apply($merge, $live);
+                self::assertTrue($drifted->hasErrors());
+                self::assertSame(0, $drifted->rowsAffected());
+                self::assertSame('drift', $connection->scalar("SELECT title FROM {$table} WHERE id = 1"));
+                $connection->execute("DELETE FROM {$table} WHERE id = 1");
+                self::assertTrue($applier->apply($merge, $live)->hasErrors());
+            } finally {
+                $connection->execute("DROP TABLE {$table}");
+            }
+        }
+    }
+
     private function mysqliConnection(): ?DatabaseConnection
     {
         $host = getenv('MERQL_MYSQL_HOST') ?: '';

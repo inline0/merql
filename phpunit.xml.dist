@@ -6,15 +6,15 @@
          cacheDirectory=".phpunit.cache"
          failOnRisky="true"
          failOnWarning="true">
+    <php>
+        <ini name="memory_limit" value="512M"/>
+    </php>
     <testsuites>
         <testsuite name="unit">
             <directory>tests/Unit</directory>
         </testsuite>
         <testsuite name="integration">
             <directory>tests/Integration</directory>
-        </testsuite>
-        <testsuite name="oracle">
-            <directory>tests/Oracle</directory>
         </testsuite>
     </testsuites>
     <source>

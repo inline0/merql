@@ -23,9 +23,14 @@ $result = $merge->merge($base, $ours, $theirs);
 
 ## Enabling cell-level merge
 
-Cell-level merge is opt-in. It runs only in a `ThreeWayMerge` constructed with a `CellMergeConfig`. Without one, every column that both sides changed to different values is an `update_update` conflict.
+Cell-level merge is opt-in. It runs when a `CellMergeConfig` is passed to
+`ThreeWayMerge`, the facade, or selected with the CLI flag. Without one, every column that both sides changed to different values is an `update_update` conflict.
 
-The `Merql` facade does not take a config: `Merql::merge()`, `Merql::patch()`, and `Merql::plan()` construct `new ThreeWayMerge()` without one, and the CLI's `merge` command goes through `Merql::merge()`. They always merge at the column level ([#7](https://github.com/inline0/merql/issues/7)).
+Pass `cellMergeConfig: CellMergeConfig::auto()` to `Merql::init()` to use it
+for subsequent `Merql::merge()`, `Merql::patch()`, and `Merql::plan()` calls.
+Each method also accepts an optional `cellMergeConfig` argument for a single
+call. `Merql::reset()` clears the configured default. The CLI exposes the same
+automatic TEXT and JSON strategies with `merql merge --cell-merge`.
 
 To merge snapshots saved by the facade or the CLI with cell-level merge, load them and call `ThreeWayMerge` yourself. The result is an ordinary `MergeResult`, so the facade can still apply it, and `MergePlanBuilder` turns it into a [merge plan](/docs/merge/plans):
 

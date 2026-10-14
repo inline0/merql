@@ -183,8 +183,7 @@ use Merql\Merge\ThreeWayMerge;
 use Merql\Apply\DryRun;
 
 // Three-way merge with cell-level merge for TEXT and JSON columns.
-// Cell-level merge is opt-in: Merql::merge(), Merql::plan() and the CLI
-// merge at the column level only.
+// The facade also accepts CellMergeConfig; the CLI uses --cell-merge.
 $merge = new ThreeWayMerge(CellMergeConfig::auto());
 $result = $merge->merge($base, $ours, $theirs);
 
@@ -280,7 +279,7 @@ Topics covered:
 Merql is validated with unit tests, integration tests against real SQLite, and an oracle-style regression corpus.
 
 ```bash
-# PHPUnit unit + integration tests (the oracle corpus is separate)
+# PHPUnit unit + integration tests and the complete oracle corpus
 composer test
 
 # Oracle regression corpus
@@ -296,15 +295,13 @@ composer cs
 composer verify
 ```
 
-CI runs coding standards, PHPStan, PHPUnit, a MySQL integration lane and
-dependency audit. It does not run the oracle corpus yet
-([#6](https://github.com/inline0/merql/issues/6)); run `composer test:oracle`
-locally.
+CI runs coding standards, PHPStan, PHPUnit, the complete oracle corpus, a
+MySQL integration lane and dependency audit.
 
 Current local verification baseline:
 
-- `231` PHPUnit tests
-- `545` assertions
+- `241` PHPUnit tests
+- `590` assertions
 - oracle regression summary `32/32`
 
 ## Features

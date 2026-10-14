@@ -114,7 +114,10 @@ $result = Merql::merge('base', 'ours', 'theirs');
 
 Do not take all three snapshots from one database in sequence. Theirs would then contain ours' changes as well, so every row ours inserted would appear as inserted on both sides and be reported as an `insert_insert` conflict.
 
-`Merql::merge()`, `Merql::patch()`, and `Merql::plan()` create a `ThreeWayMerge` without a `CellMergeConfig`, so they merge at the column level only. For cell-level merge, load the snapshots and use the class directly, as below.
+`Merql::merge()`, `Merql::patch()`, and `Merql::plan()` accept an optional
+`CellMergeConfig`, or use the default passed to `Merql::init()`. Without one,
+they merge at the column level. You can also load snapshots and configure
+`ThreeWayMerge` directly, as below.
 
 ## Using the classes directly
 

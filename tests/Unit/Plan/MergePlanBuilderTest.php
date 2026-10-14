@@ -11,6 +11,7 @@ use Merql\Plan\ChangeGroupSelection;
 use Merql\Plan\MergePlanBuilder;
 use Merql\Plan\MergePlanSerializer;
 use Merql\Plan\SelectedMergeResultFactory;
+use Merql\Plan\OperationSelection;
 use Merql\Schema\TableSchema;
 use Merql\Snapshot\Snapshot;
 use Merql\Snapshot\Snapshotter;
@@ -114,6 +115,44 @@ final class MergePlanBuilderTest extends TestCase
         $this->assertSame(['id'], $plan->operations[1]->identityColumns);
         $this->assertSame([], $plan->operations[2]->identityColumns);
         $this->assertSame(['id', 'title'], $plan->operations[0]->changedColumns);
+    }
+
+    #[Test]
+    public function row_conflicts_are_preserved_in_selected_results(): void
+    {
+        $base = $this->snapshot('base', [['id' => '1', 'title' => 'original']]);
+        $ours = $this->snapshot('ours', [['id' => '1', 'title' => 'ours']]);
+        $theirs = $this->snapshot('theirs', [['id' => '1', 'title' => 'theirs']]);
+        $result = (new ThreeWayMerge())->merge($base, $ours, $theirs);
+        $plan = (new MergePlanBuilder())->build('conflict', $base, $ours, $theirs, $result);
+        self::assertSame('conflicted', $plan->operations[0]->conflictState);
+        self::assertSame('conflicted', $plan->changeGroups[0]->conflictState);
+        $selected = (new SelectedMergeResultFactory())->fromOperationSelection(
+            $plan,
+            OperationSelection::fromIds([$plan->operations[0]->id]),
+            $base,
+        );
+        self::assertFalse($selected->isClean());
+        self::assertSame(1, $selected->conflictCount());
+    }
+
+    #[Test]
+    public function conflicted_operation_without_its_payload_is_rejected(): void
+    {
+        $base = $this->snapshot('base', [['id' => '1', 'title' => 'original']]);
+        $ours = $this->snapshot('ours', [['id' => '1', 'title' => 'ours']]);
+        $result = (new ThreeWayMerge())->merge($base, $ours, $base);
+        $plan = (new MergePlanBuilder())->build('conflict', $base, $ours, $base, $result);
+        $data = $plan->toArray();
+        $data['operations'][0]['conflict_state'] = 'conflicted';
+        $plan = MergePlanSerializer::fromJson(json_encode($data, JSON_THROW_ON_ERROR));
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Cannot select an unresolved operation');
+        (new SelectedMergeResultFactory())->fromOperationSelection(
+            $plan,
+            OperationSelection::fromIds([$plan->operations[0]->id]),
+            $base,
+        );
     }
 
     /**

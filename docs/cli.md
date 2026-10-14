@@ -156,7 +156,12 @@ Merge: base + ours + theirs
 
 All three snapshots must already exist. The merge does not require a database connection since it operates on saved snapshot files, and it never writes to a database: the CLI has no apply command. Use the PHP API to apply a merge result.
 
-The CLI merges at the column level. It does not apply cell-level merge to TEXT or JSON columns, so two different edits to the same column are always a conflict here ([#7](https://github.com/inline0/merql/issues/7)). Use `ThreeWayMerge` with a `CellMergeConfig` in PHP for cell-level merge.
+The CLI merges at the column level by default. Pass `--cell-merge` to merge
+TEXT fields line by line and JSON fields key by key:
+
+```bash
+vendor/bin/merql merge base ours theirs --cell-merge --dry-run
+```
 
 #### `--dry-run`
 
@@ -196,19 +201,29 @@ A checkout of the merql repository has more scripts in `bin/` for its oracle-dri
 | `./bin/verify-compliance` | Full compliance report |
 | `./bin/verify-all` | PHPStan + code style + PHPUnit + oracle regression |
 
-`bin/test-regression` also accepts `--jobs`, but it currently ignores the value and runs scenarios one after another ([#5](https://github.com/inline0/merql/issues/5)). An unknown `--category` prints `No scenarios found` and exits successfully.
+`bin/test-regression --jobs 4` runs up to four isolated PHP workers and prints
+results in scenario order. `--jobs` requires a positive integer. An unknown
+`--category` prints `No scenarios found` and exits successfully.
 
 See [Testing Strategy](/docs/advanced/testing) for the scenario layout.
 
 ## Exit status
 
-`merql snapshot`, `diff`, and `merge` exit with status 1 when an argument is missing, and `snapshot` also when no connection is configured. A missing snapshot ends the command with an uncaught `SnapshotException` and a non-zero status. An unknown command prints `Unknown command` but currently exits with status 0 ([#3](https://github.com/inline0/merql/issues/3)).
+`merql snapshot`, `diff`, and `merge` exit with status 1 when an argument is
+missing, and `snapshot` also when no connection is configured. Missing snapshots
+and unknown commands print a one-line error to stderr and exit 1.
 
 ## Snapshot storage
 
 Snapshots are stored in `.merql/snapshots/` relative to the working directory. Each snapshot is a single JSON file named `<name>.json`. Run every command from the same directory so they find each other's snapshots.
 
-The CLI has no option or environment variable for another location ([#8](https://github.com/inline0/merql/issues/8)). To use one, change into a different working directory before running it. In PHP, set the directory before capturing or loading snapshots:
+Set `MERQL_SNAPSHOT_DIR` to use another directory for every CLI command:
+
+```bash
+export MERQL_SNAPSHOT_DIR="/var/data/merql-snapshots"
+```
+
+In PHP, set the directory before capturing or loading snapshots:
 
 ```php
 use Merql\Snapshot\SnapshotStore;

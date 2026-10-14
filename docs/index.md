@@ -68,7 +68,7 @@ Most database tools that compare state work at the row level: if any column in a
 
 merql merges at the column level. If one side changed the `title` and the other changed the `status`, those changes merge cleanly without conflict. A conflict is only raised when both sides change the same column to different values.
 
-For TEXT and JSON columns, merql can go one level deeper with cell-level merge. Two edits to different lines of a text column, or different keys of a JSON column, can merge cleanly using the same three-way algorithm. Cell-level merge is opt-in: pass a `CellMergeConfig` to `ThreeWayMerge`. The `Merql` facade and the CLI merge at the column level only. See [Cell-Level Merge](/docs/merge/cell-level).
+For TEXT and JSON columns, merql can go one level deeper with cell-level merge. Two edits to different lines of a text column, or different keys of a JSON column, can merge cleanly using the same three-way algorithm. Cell-level merge is opt-in: pass a `CellMergeConfig` to `ThreeWayMerge` or the facade, or use `--cell-merge` in the CLI. See [Cell-Level Merge](/docs/merge/cell-level).
 
 ## The merge model
 

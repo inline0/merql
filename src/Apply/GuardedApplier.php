@@ -45,7 +45,17 @@ final class GuardedApplier
             foreach ($statements as $stmt) {
                 $affected = $this->connection->execute($stmt['sql'], $stmt['params']);
 
-                if ($affected < 1) {
+                $matched = false;
+                if ($affected < 1 && isset($stmt['precondition'])) {
+                    $sql = $stmt['precondition']['sql'];
+                    if ($this->connection->driverName() === 'mysql') {
+                        // A locking read sees the current row, not an older MVCC snapshot.
+                        $sql .= ' FOR UPDATE';
+                    }
+                    $matched = $this->connection->scalar($sql, $stmt['precondition']['params']) !== null;
+                }
+
+                if ($affected < 1 && !$matched) {
                     throw new \RuntimeException('Optimistic precondition failed for guarded merge statement.');
                 }
 
@@ -55,6 +65,7 @@ final class GuardedApplier
             $this->connection->commit();
         } catch (\Throwable $e) {
             $this->connection->rollBack();
+            $totalAffected = 0;
             $errors[] = $e->getMessage();
         }
 

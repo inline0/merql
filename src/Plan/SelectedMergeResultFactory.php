@@ -6,6 +6,7 @@ namespace Merql\Plan;
 
 use Merql\Merge\MergeOperation;
 use Merql\Merge\MergeResult;
+use Merql\Merge\Conflict;
 use Merql\Snapshot\Snapshot;
 
 /**
@@ -19,6 +20,7 @@ final class SelectedMergeResultFactory
         ?Snapshot $baseSnapshot = null,
     ): MergeResult {
         $operations = [];
+        $conflicts = [];
         foreach ($plan->operations as $operation) {
             if (!$selection->contains($operation->id)) {
                 continue;
@@ -31,9 +33,27 @@ final class SelectedMergeResultFactory
                 $operation->resultValues,
                 $operation->source,
             );
+            $rowConflicts = [];
+            foreach ($plan->conflicts as $conflict) {
+                if ($conflict->table === $operation->table && $conflict->rowKey === $operation->rowKey) {
+                    $rowConflicts[] = new Conflict(
+                        $conflict->table,
+                        $conflict->rowKey,
+                        $conflict->type,
+                        $conflict->column,
+                        $conflict->oursValue,
+                        $conflict->theirsValue,
+                        $conflict->baseValue,
+                    );
+                }
+            }
+            if ($operation->conflictState !== 'clean' && $rowConflicts === []) {
+                throw new \RuntimeException('Cannot select an unresolved operation: ' . $operation->id);
+            }
+            array_push($conflicts, ...$rowConflicts);
         }
 
-        return new MergeResult($operations, [], $baseSnapshot);
+        return new MergeResult($operations, $conflicts, $baseSnapshot);
     }
 
     public function fromChangeGroupSelection(
