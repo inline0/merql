@@ -162,7 +162,7 @@ $result = Merql::patch('base', 'changes');
 
 ## Schema mismatch detection
 
-If the table structure changed between snapshots (columns added, removed, or retyped), the merge still proceeds but records the mismatches:
+If columns were added to or removed from a table between snapshots, the merge still proceeds but records the mismatches. Changed column types are not compared, and a renamed column shows up as one removed and one added; see [Schema Validation](/docs/advanced/schema).
 
 ```php
 $result = $merge->merge($base, $ours, $theirs);
