@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.5.0] - 2026-10-14
+
+### Added
+
+- Optional `CellMergeConfig` on the facade's initialization, merge, patch
+  and plan methods. The CLI's `--cell-merge` flag enables text line and JSON
+  key merging without constructing `ThreeWayMerge` directly.
+- `MERQL_SNAPSHOT_DIR` selects the CLI snapshot directory independently of
+  its working directory.
+
+### Fixed
+
+- Merge plan operations and groups report unresolved row conflicts, and
+  selected merge results retain those conflicts instead of applying ours'
+  values as a clean selection.
+- Guarded MySQL updates accept matching rows whose values do not change,
+  while still rejecting drifted or missing rows through a locking check.
+- Failed transactional applies report zero affected rows after rollback.
+- Unknown CLI commands exit 1 with a one-line error.
+- `bin/test-regression --jobs` runs isolated PHP workers and validates the
+  job count. Workers inherit the parent memory limit for large scenarios.
+- `composer test` includes the full oracle corpus, so scenario regressions
+  fail CI. Removed the empty PHPUnit oracle suite.
+
 ## [0.4.1] - 2026-09-24
 
 ### Fixed
