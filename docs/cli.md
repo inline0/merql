@@ -10,26 +10,40 @@ meta_description: "Full reference for the merql command-line interface. Snapshot
 
 # CLI Reference
 
-merql ships with a CLI at `bin/merql` for capturing snapshots, computing diffs, and running merges directly from the terminal.
+merql ships with a CLI for capturing snapshots, computing diffs, and running merges directly from the terminal. Composer installs it as `vendor/bin/merql`; in a checkout of the merql repository it is `bin/merql`.
+
+`vendor/bin/merql` works from a dependency install since merql 0.4.1. Earlier releases looked for the Composer autoloader only in the package's own `vendor/` directory and failed when merql was installed as a dependency.
 
 ## Quick start
 
 ```bash
-# Set up your database connection.
+# Capture a baseline from your database.
 export MERQL_DB_DSN="sqlite:/path/to/db.sqlite"
-
-# Capture a baseline.
-./bin/merql snapshot base
+vendor/bin/merql snapshot base
 
 # Make some changes, then capture again.
-./bin/merql snapshot current
+vendor/bin/merql snapshot current
 
 # See what changed.
-./bin/merql diff base current
+vendor/bin/merql diff base current
+```
+
+A three-way merge needs ours and theirs captured from two databases that diverged from base. Point `MERQL_DB_DSN` at the right database for each snapshot:
+
+```bash
+# Base: live before the sandbox was copied from it.
+MERQL_DB_DSN="sqlite:/data/live.sqlite" vendor/bin/merql snapshot base
+
+# ... copy live.sqlite to sandbox.sqlite, then both databases change ...
+
+MERQL_DB_DSN="sqlite:/data/sandbox.sqlite" vendor/bin/merql snapshot ours
+MERQL_DB_DSN="sqlite:/data/live.sqlite" vendor/bin/merql snapshot theirs
 
 # Three-way merge with dry-run preview.
-./bin/merql merge base ours theirs --dry-run
+vendor/bin/merql merge base ours theirs --dry-run
 ```
+
+Taking all three snapshots from the same database one after another does not work as a merge: theirs would already contain ours' changes, so every row ours inserted would be reported as an `insert_insert` conflict.
 
 ## Environment variables
 
@@ -39,7 +53,8 @@ connect using either a PDO DSN string or individual MySQL parameters.
 ### DSN-based connection
 
 Use `MERQL_DB_DSN` for PDO-backed connections. This is the recommended approach
-for SQLite and for non-standard configurations.
+for SQLite and for non-standard configurations. The DSN must point at a MySQL
+or SQLite database: the CLI has no way to register a driver for other engines.
 
 | Variable | Description | Example |
 |---|---|---|
@@ -51,14 +66,15 @@ for SQLite and for non-standard configurations.
 # SQLite file.
 export MERQL_DB_DSN="sqlite:/var/data/myapp.sqlite"
 
-# SQLite in-memory.
-export MERQL_DB_DSN="sqlite::memory:"
-
 # MySQL via DSN.
 export MERQL_DB_DSN="mysql:host=127.0.0.1;dbname=mydb;charset=utf8mb4"
 export MERQL_DB_USER="root"
 export MERQL_DB_PASS="secret"
 ```
+
+Use a file-backed SQLite database. Each CLI command runs in its own process, so
+`sqlite::memory:` always opens a new, empty database and a snapshot of it
+contains no tables.
 
 ### MySQL shorthand
 
@@ -85,10 +101,10 @@ export MERQL_DB_PASS="password"
 
 ### `merql snapshot <name>`
 
-Capture the current database state and save it as a named snapshot.
+Capture the current state of the database named by the environment variables and save it as a named snapshot. This is the only command that connects to a database.
 
 ```bash
-./bin/merql snapshot baseline
+vendor/bin/merql snapshot baseline
 ```
 
 Output:
@@ -98,7 +114,7 @@ Snapshot 'baseline' saved
 Tables: posts, comments, users, settings
 ```
 
-Snapshots are persisted as JSON files in `.merql/snapshots/` by default. The name must contain only alphanumeric characters, dashes, and underscores.
+Snapshots are persisted as JSON files in `.merql/snapshots/` under the working directory (see [Snapshot storage](#snapshot-storage)). The name must contain only alphanumeric characters, dashes, and underscores.
 
 Typical workflow: capture a snapshot before making changes, then capture another after. The two snapshots form the basis of a diff or merge.
 
@@ -107,7 +123,7 @@ Typical workflow: capture a snapshot before making changes, then capture another
 Compare two named snapshots and display a summary of differences.
 
 ```bash
-./bin/merql diff baseline current
+vendor/bin/merql diff baseline current
 ```
 
 Output:
@@ -126,7 +142,7 @@ Both snapshots must already exist (previously captured with `merql snapshot`). T
 Perform a three-way merge of three named snapshots.
 
 ```bash
-./bin/merql merge base ours theirs
+vendor/bin/merql merge base ours theirs
 ```
 
 Output:
@@ -138,14 +154,16 @@ Merge: base + ours + theirs
   Clean:      yes
 ```
 
-All three snapshots must already exist. The merge does not require a database connection since it operates on saved snapshot files.
+All three snapshots must already exist. The merge does not require a database connection since it operates on saved snapshot files, and it never writes to a database: the CLI has no apply command. Use the PHP API to apply a merge result.
+
+The CLI merges at the column level. It does not apply cell-level merge to TEXT or JSON columns, so two different edits to the same column are always a conflict here ([#7](https://github.com/inline0/merql/issues/7)). Use `ThreeWayMerge` with a `CellMergeConfig` in PHP for cell-level merge.
 
 #### `--dry-run`
 
-Add the `--dry-run` flag to preview the SQL statements that the merge would generate, without executing anything.
+Add the `--dry-run` flag to preview the SQL statements that the merge would generate, without executing anything. The statements describe how to turn the base state into the merged result, so they include the changes of both sides.
 
 ```bash
-./bin/merql merge base ours theirs --dry-run
+vendor/bin/merql merge base ours theirs --dry-run
 ```
 
 Output:
@@ -162,9 +180,9 @@ Dry run SQL:
   DELETE FROM `comments` WHERE `id` = '3';
 ```
 
-## Testing commands
+## Development commands
 
-merql includes additional CLI tools for its oracle-driven test suite. These are used during development to verify merge correctness.
+A checkout of the merql repository has more scripts in `bin/` for its oracle-driven test suite. They are not part of the Composer package, so a dependency install only has `vendor/bin/merql`. Run them from the repository root after `composer install`.
 
 | Command | Description |
 |---|---|
@@ -173,17 +191,24 @@ merql includes additional CLI tools for its oracle-driven test suite. These are 
 | `./bin/compare <name>` | Diff oracle vs actual output |
 | `./bin/test-scenario <name>` | Full pipeline: setup, oracle, actual, compare |
 | `./bin/test-regression` | Run all scenarios |
-| `./bin/test-regression --jobs 4` | Run scenarios in parallel |
-| `./bin/test-regression --category merge` | Run scenarios by category |
+| `./bin/test-regression --category clean` | Run one category: `clean`, `conflict`, `identity`, `types`, `scale`, or `edge` |
 | `./bin/test-regression --fast` | Pass/fail only, no reports |
 | `./bin/verify-compliance` | Full compliance report |
 | `./bin/verify-all` | PHPStan + code style + PHPUnit + oracle regression |
 
+`bin/test-regression` also accepts `--jobs`, but it currently ignores the value and runs scenarios one after another ([#5](https://github.com/inline0/merql/issues/5)). An unknown `--category` prints `No scenarios found` and exits successfully.
+
+See [Testing Strategy](/docs/advanced/testing) for the scenario layout.
+
+## Exit status
+
+`merql snapshot`, `diff`, and `merge` exit with status 1 when an argument is missing, and `snapshot` also when no connection is configured. A missing snapshot ends the command with an uncaught `SnapshotException` and a non-zero status. An unknown command prints `Unknown command` but currently exits with status 0 ([#3](https://github.com/inline0/merql/issues/3)).
+
 ## Snapshot storage
 
-By default, snapshots are stored in `.merql/snapshots/` relative to the working directory. Each snapshot is a single JSON file named `<name>.json`.
+Snapshots are stored in `.merql/snapshots/` relative to the working directory. Each snapshot is a single JSON file named `<name>.json`. Run every command from the same directory so they find each other's snapshots.
 
-To change the storage directory, set it in PHP before using the CLI (or modify the CLI script):
+The CLI has no option or environment variable for another location ([#8](https://github.com/inline0/merql/issues/8)). To use one, change into a different working directory before running it. In PHP, set the directory before capturing or loading snapshots:
 
 ```php
 use Merql\Snapshot\SnapshotStore;
@@ -191,4 +216,4 @@ use Merql\Snapshot\SnapshotStore;
 SnapshotStore::setDirectory('/var/data/merql-snapshots');
 ```
 
-Snapshot files are portable. You can copy them between machines, commit them to version control, or share them for collaborative debugging.
+Snapshot files are portable. You can copy them between machines, commit them to version control, or share them for collaborative debugging. A snapshot captured by the CLI can be loaded in PHP with `SnapshotStore::load()`, and the other way around, as long as both use the same directory.

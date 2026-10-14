@@ -116,11 +116,11 @@ $driver = DriverFactory::create($connection);
 // Returns SqliteDriver
 ```
 
-If the connection driver identity is not recognized, a `RuntimeException` is thrown.
+If the connection driver identity is not recognized, a `RuntimeException` with the message `Unsupported database driver: <name>` is thrown. merql ships no PostgreSQL driver.
 
 ### Registering custom drivers
 
-For databases beyond MySQL and SQLite, register a custom driver class:
+For databases beyond MySQL and SQLite, write a class that implements `Driver` and register it. `PostgresDriver` below stands for your own class:
 
 ```php
 use Merql\Driver\DriverFactory;
@@ -165,9 +165,16 @@ $connection = Connection::mysqli('127.0.0.1', 'my_database', 'root', 'password')
 $connection = Connection::sqlite(':memory:');
 $connection = Connection::sqlite('/var/data/app.sqlite');
 
-// Any DSN.
-$connection = Connection::fromDsn('pgsql:host=localhost;dbname=mydb', 'user', 'pass');
+// Any MySQL or SQLite PDO DSN.
+$connection = Connection::fromDsn('mysql:host=127.0.0.1;dbname=mydb;charset=utf8mb4', 'user', 'pass');
 ```
+
+`fromDsn()` accepts any DSN PDO can open, but merql can only snapshot and apply
+through a registered driver. A `pgsql:` connection opens (when `pdo_pgsql` is
+installed), but `Merql::init()` and the `Snapshotter`, `Applier`, and
+`GuardedApplier` constructors call `DriverFactory::create()`, which throws
+`RuntimeException: Unsupported database driver: pgsql` unless you have
+[registered a driver](#registering-custom-drivers) for it or pass one in.
 
 `Connection::sqlite()` also enables `PRAGMA foreign_keys = ON` automatically, which SQLite requires for foreign key enforcement.
 

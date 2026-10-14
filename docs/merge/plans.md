@@ -17,6 +17,7 @@ target database.
 
 ```php
 use Merql\Merql;
+
 $plan = Merql::plan(
     id: 'plan-2026-06-06',
     base: 'base',
@@ -24,6 +25,25 @@ $plan = Merql::plan(
     theirs: 'theirs',
     metadata: ['sandbox_id' => 'ow_123'],
 );
+```
+
+`Merql::plan()` loads the three named snapshots and merges them at the column
+level, like `Merql::merge()`. To plan a merge that uses cell-level merge for
+TEXT and JSON columns, build the result yourself and pass it to
+`MergePlanBuilder`:
+
+```php
+use Merql\CellMerge\CellMergeConfig;
+use Merql\Merge\ThreeWayMerge;
+use Merql\Plan\MergePlanBuilder;
+use Merql\Snapshot\SnapshotStore;
+
+$base = SnapshotStore::load('base');
+$ours = SnapshotStore::load('ours');
+$theirs = SnapshotStore::load('theirs');
+
+$result = (new ThreeWayMerge(CellMergeConfig::auto()))->merge($base, $ours, $theirs);
+$plan = (new MergePlanBuilder())->build('plan-2026-06-06', $base, $ours, $theirs, $result);
 ```
 
 The plan contains:
@@ -101,6 +121,56 @@ $selectedResult = (new SelectedMergeResultFactory())->fromOperationSelection(
 
 The selected result is a clean `MergeResult` that contains only selected
 operations. It can be passed to `Merql::apply()` or `Merql::applyGuarded()`.
+
+## Selecting What A Target Is Missing
+
+A plan holds the operations of both sides, because the merge result turns base
+into the merged state. When the target already holds one side, select only the
+operations it does not have yet. For a target that holds theirs, such as a live
+database receiving the edits of a sandbox copy, that is every operation with
+source `ours`, plus `merged` updates, which combine both sides' column changes:
+
+```php
+use Merql\Plan\OperationSelection;
+use Merql\Plan\SelectedMergeResultFactory;
+use Merql\Snapshot\SnapshotStore;
+
+// Rows with an unresolved conflict stay out of the selection.
+$conflicted = [];
+foreach ($plan->conflicts as $conflict) {
+    $conflicted[$conflict->table . "\0" . $conflict->rowKey] = true;
+}
+
+$ids = [];
+foreach ($plan->operations as $operation) {
+    $missing = $operation->source === 'ours'
+        || ($operation->source === 'merged' && $operation->type === 'update');
+
+    if ($missing && !isset($conflicted[$operation->table . "\0" . $operation->rowKey])) {
+        $ids[] = $operation->id;
+    }
+}
+
+$selected = (new SelectedMergeResultFactory())->fromOperationSelection(
+    $plan,
+    OperationSelection::fromIds($ids),
+    SnapshotStore::load($plan->baseSnapshot),
+);
+```
+
+Operations with source `theirs`, and `merged` deletes (rows both sides
+deleted), are already present in that target.
+
+A plan built from a merge with conflicts still lists an operation for each
+conflicted row that both sides updated. Its result values hold ours' value in
+the conflicting column, and `SelectedMergeResultFactory` returns a clean result
+for any selection. The operation's and change group's `conflictState` currently
+read `clean` even then ([#9](https://github.com/inline0/merql/issues/9)), so
+check `$plan->conflicts` yourself as above, or resolve conflicts with
+`ConflictResolver` and build the plan from the resolved result with
+`MergePlanBuilder`. See
+[Guarded Apply](/docs/apply/guarded) for writing the selection with live-row
+preconditions.
 
 ## Serialization
 

@@ -31,7 +31,10 @@ Merql::init($connection, identityRules: new IdentityRuleSet([
 ### `init(DatabaseConnection $connection, ?Driver $driver = null, ?IdentityRuleSet $identityRules = null): void`
 
 Initialize the facade with a database connection. Must be called before
-`snapshot()` or `apply()`. Pass a driver to override auto-detection, or an
+`snapshot()`, `apply()`, or `applyGuarded()`; call it again to switch databases,
+for example to snapshot ours and theirs from two different copies. Without a
+`$driver`, it calls `DriverFactory::create()`, which throws for engines other
+than MySQL and SQLite unless a driver is registered. Pass a driver to override auto-detection, or an
 identity rule set to override per-table row identity during snapshot capture.
 
 ### `snapshot(string $name, array $tables = []): Snapshot`
@@ -53,7 +56,7 @@ $changeset = Merql::diff('before', 'after');
 
 ### `merge(string $base, string $ours, string $theirs): MergeResult`
 
-Three-way merge of three named snapshots. Returns a result containing clean operations and any conflicts.
+Three-way merge of three named snapshots. Returns a result containing clean operations and any conflicts. Merges at the column level: the facade constructs `ThreeWayMerge` without a `CellMergeConfig`, so cell-level merge is not applied. Use [`ThreeWayMerge`](#threewaymerge) directly for that.
 
 ```php
 $result = Merql::merge('base', 'ours', 'theirs');
@@ -61,7 +64,7 @@ $result = Merql::merge('base', 'ours', 'theirs');
 
 ### `patch(string $base, string $changes): MergeResult`
 
-Two-way merge: apply changes onto base. Equivalent to `merge($base, $base, $changes)`. Always produces a clean result because there are no concurrent edits.
+Two-way merge: apply changes onto base. Equivalent to `merge($base, $base, $changes)`. Always produces a clean result because there are no concurrent edits. Column level only, like `merge()`.
 
 ```php
 $result = Merql::patch('base', 'changes');
@@ -69,7 +72,9 @@ $result = Merql::patch('base', 'changes');
 
 ### `apply(MergeResult $result): ApplyResult`
 
-Execute a clean merge result against the database. Requires `init()`. Throws `ConflictException` if unresolved conflicts remain.
+Execute a clean merge result against the database passed to `init()`. Requires `init()`. Throws `ConflictException` if unresolved conflicts remain.
+
+Every operation in the result is executed, so the full result of `merge()` applies cleanly only to a database that still holds the base state. For a database that already holds one side, apply a selection of the operations it is missing; see [Guarded Apply](/docs/apply/guarded).
 
 ```php
 $applied = Merql::apply($result);
@@ -80,7 +85,9 @@ echo $applied->rowsAffected();
 
 Build a UI-ready merge plan from three named snapshots. The plan includes stable
 operation IDs, change group IDs, operation context, conflicts, schema
-mismatches, a summary, metadata, and a plan hash.
+mismatches, a summary, metadata, and a plan hash. The merge is column level, as
+in `merge()`; pass a cell-merged result to `MergePlanBuilder::build()` for
+cell-level merge.
 
 ```php
 $plan = Merql::plan('plan-1', 'base', 'ours', 'theirs', [
@@ -92,7 +99,9 @@ $plan = Merql::plan('plan-1', 'base', 'ours', 'theirs', [
 
 Apply a clean merge result with optimistic live-row preconditions. Updates and
 deletes require current live rows to match `$expectedLive`; inserts require that
-the target identity does not already exist.
+the target identity does not already exist. `$expectedLive` is a snapshot of
+the target database (theirs, when promoting ours into the database theirs was
+taken from). Any statement that affects zero rows rolls back the transaction.
 
 ```php
 use Merql\Snapshot\SnapshotStore;
@@ -138,7 +147,7 @@ $connection = Connection::sqlite(':memory:');
 
 ### `fromDsn(string $dsn, string $username = '', string $password = ''): PdoDatabaseConnection`
 
-Connect using any PDO DSN string.
+Connect using any PDO DSN string. merql ships drivers for `mysql` and `sqlite` only; other DSNs open a connection, but `Merql::init()`, `Snapshotter`, and the appliers throw `Unsupported database driver` unless a driver is registered with `DriverFactory::register()`.
 
 ```php
 $connection = Connection::fromDsn('mysql:host=localhost;dbname=app', 'root', 'pass');
@@ -710,7 +719,7 @@ $result = ColumnMerge::merge(
 
 ### `apply(MergeResult $result, ?Snapshot $base = null): ApplyResult`
 
-Executes all operations in a single transaction. Rolls back on any error. Throws `ConflictException` if the result has unresolved conflicts.
+Executes all operations in a single transaction. Rolls back on any error and reports it in `ApplyResult::errors()` instead of throwing. Throws `ConflictException` if the result has unresolved conflicts.
 
 ```php
 use Merql\Apply\Applier;
@@ -737,6 +746,8 @@ $applied->rowsAffected();         // int
 $applied->errors();               // list<string>
 $applied->hasErrors();            // bool
 ```
+
+After a rolled-back apply, `rowsAffected()` still counts the statements that ran before the failure ([#4](https://github.com/inline0/merql/issues/4)). Check `hasErrors()` before trusting the count.
 
 ---
 

@@ -32,7 +32,7 @@ Merql is a pure PHP three-way database merge engine. It takes three database sta
 - UI-ready merge plans with stable operation and change group IDs
 - Selected operation apply for staging workflows
 - Rollback plan generation with drift checks
-- Cell-level merge for TEXT (line-by-line via Myers diff) and JSON (key-by-key) columns
+- Opt-in cell-level merge for TEXT (line-by-line via Myers diff) and JSON (key-by-key) columns
 - Parameterized SQL generation with FK-aware ordering
 - Guarded apply with optimistic live-row preconditions
 - Connection adapters for PDO and mysqli, with built-in MySQL and SQLite dialects
@@ -47,28 +47,44 @@ composer require merql/merql
 use Merql\Connection;
 use Merql\Merql;
 
-// Initialize with a MerQL connection adapter.
-Merql::init(Connection::sqlite('/path/to/db.sqlite'));
+$live    = Connection::sqlite('/data/live.sqlite');
+$sandbox = Connection::sqlite('/data/sandbox.sqlite');
 
-// Capture database state at key points.
+// Base: live at the moment the sandbox was copied from it.
+Merql::init($live);
 Merql::snapshot('base');
-// ... ours makes changes ...
+
+// ... copy live.sqlite to sandbox.sqlite, then both databases change ...
+
+// Ours: the edited sandbox. Theirs: live with its own changes.
+Merql::init($sandbox);
 Merql::snapshot('ours');
-// ... theirs makes changes ...
+Merql::init($live);
 Merql::snapshot('theirs');
 
 // Three-way merge.
 $result = Merql::merge('base', 'ours', 'theirs');
 
 if ($result->isClean()) {
-    Merql::apply($result);
+    foreach ($result->operations() as $operation) {
+        echo "{$operation->type} {$operation->table} #{$operation->rowKey} ({$operation->source})\n";
+    }
 } else {
     foreach ($result->conflicts() as $conflict) {
-        echo "{$conflict->table()}.{$conflict->column()}: "
-            . "ours={$conflict->oursValue()}, theirs={$conflict->theirsValue()}\n";
+        echo "{$conflict->type()} {$conflict->table()} #{$conflict->rowKey()} {$conflict->column()}\n";
     }
 }
 ```
+
+Take each snapshot from the database that holds that state. Taken from one
+database in sequence, theirs would already contain ours' changes and every row
+ours inserted would be reported as an `insert_insert` conflict.
+
+The result turns base into the merged state and carries the changes of both
+sides. `Merql::apply($result)` executes all of it against the connected
+database, which works for a database that still holds base. To write the
+sandbox's changes into live, select the operations live is missing and use
+guarded apply, as below.
 
 ## Merge Plans And Rollback
 
@@ -76,53 +92,76 @@ Use merge plans when a host application needs to inspect, stage, or selectively
 apply database changes before writing to the target database.
 
 ```php
-use Merql\Plan\ChangeGroupSelection;
+use Merql\Connection;
+use Merql\Identity\IdentityRule;
+use Merql\Identity\IdentityRuleSet;
+use Merql\Merql;
+use Merql\Plan\OperationSelection;
 use Merql\Plan\SelectedMergeResultFactory;
 use Merql\Rollback\RollbackPlanBuilder;
 use Merql\Snapshot\SnapshotStore;
 use Merql\Snapshot\Snapshotter;
-use Merql\Identity\IdentityRule;
-use Merql\Identity\IdentityRuleSet;
 
 $rules = new IdentityRuleSet([
     'wp_options' => IdentityRule::natural(['option_name']),
 ]);
 
-$connection = Connection::sqlite('/path/to/db.sqlite');
-$snapshotter = new Snapshotter($connection, identityRules: $rules);
-SnapshotStore::save($snapshotter->capture('base', ['wp_options']));
-SnapshotStore::save($snapshotter->capture('ours', ['wp_options']));
-SnapshotStore::save($snapshotter->capture('theirs', ['wp_options']));
+$live = Connection::sqlite('/data/live.sqlite');
+$sandbox = Connection::sqlite('/data/sandbox.sqlite');
+
+// base: live before the sandbox copy; ours: the sandbox; theirs: live now.
+SnapshotStore::save((new Snapshotter($live, identityRules: $rules))->capture('base', ['wp_options']));
+// ... copy live to the sandbox, then both databases change ...
+SnapshotStore::save((new Snapshotter($sandbox, identityRules: $rules))->capture('ours', ['wp_options']));
+SnapshotStore::save((new Snapshotter($live, identityRules: $rules))->capture('theirs', ['wp_options']));
 
 $plan = Merql::plan('plan-1', 'base', 'ours', 'theirs');
 
-$selection = ChangeGroupSelection::fromIds([
-    $plan->changeGroups[0]->id,
-]);
+// Live already holds theirs. Select what it is missing (ours, and merged
+// updates), leaving out rows with unresolved conflicts.
+$conflicted = [];
+foreach ($plan->conflicts as $conflict) {
+    $conflicted[$conflict->table . "\0" . $conflict->rowKey] = true;
+}
+$ids = [];
+foreach ($plan->operations as $operation) {
+    $missing = $operation->source === 'ours'
+        || ($operation->source === 'merged' && $operation->type === 'update');
+    if ($missing && !isset($conflicted[$operation->table . "\0" . $operation->rowKey])) {
+        $ids[] = $operation->id;
+    }
+}
+$selection = OperationSelection::fromIds($ids);
 
 $selected = (new SelectedMergeResultFactory())
-    ->fromChangeGroupSelection($plan, $selection, SnapshotStore::load('base'));
+    ->fromOperationSelection($plan, $selection, SnapshotStore::load('base'));
 
-$rollback = (new RollbackPlanBuilder())->build(
-    'rollback-1',
-    $plan,
-    $selection->toOperationSelection($plan),
-    liveBeforeRows: [
-        $plan->operations[0]->id => $plan->operations[0]->theirsRow,
-    ],
-);
+// Before rows come from the live state the write will overwrite.
+$expectedLive = SnapshotStore::load('theirs');
+$liveBeforeRows = [];
+foreach ($plan->operations as $operation) {
+    if ($selection->contains($operation->id)) {
+        $liveBeforeRows[$operation->id] = $expectedLive
+            ->getTable($operation->table)
+            ?->getRow($operation->rowKey);
+    }
+}
 
-$applied = Merql::applyGuarded($selected, SnapshotStore::load('theirs'));
+$rollback = (new RollbackPlanBuilder())->build('rollback-1', $plan, $selection, $liveBeforeRows);
+
+Merql::init($live);
+$applied = Merql::applyGuarded($selected, $expectedLive);
 ```
 
 For prefixed or multi-environment tables, capture physical table names under a
 canonical name before merging:
 
 ```php
-use Merql\Snapshot\SnapshotStore;
-use Merql\Snapshot\Snapshotter;
+use Merql\Connection;
 use Merql\Identity\IdentityRule;
 use Merql\Identity\IdentityRuleSet;
+use Merql\Snapshot\SnapshotStore;
+use Merql\Snapshot\Snapshotter;
 
 $connection = Connection::sqlite('/path/to/db.sqlite');
 $snapshotter = new Snapshotter($connection, identityRules: new IdentityRuleSet([
@@ -143,7 +182,9 @@ use Merql\Merge\ConflictResolver;
 use Merql\Merge\ThreeWayMerge;
 use Merql\Apply\DryRun;
 
-// Three-way merge with cell-level merge for TEXT and JSON columns
+// Three-way merge with cell-level merge for TEXT and JSON columns.
+// Cell-level merge is opt-in: Merql::merge(), Merql::plan() and the CLI
+// merge at the column level only.
 $merge = new ThreeWayMerge(CellMergeConfig::auto());
 $result = $merge->merge($base, $ours, $theirs);
 
@@ -172,14 +213,16 @@ foreach ($sql as $statement) {
             Merged result
 ```
 
-Merql merges at four levels of granularity:
+Merql detects conflicts at three levels of granularity:
 
 | Level | Unit | Conflict when |
 |---|---|---|
-| Table | Whole table | One side adds, other removes |
-| Row | Row by PK | Both insert same PK |
-| Column | Column value | Both change same column to different values |
-| Cell | Content within value | Both change same line (text) or key (JSON) |
+| Row | Row by identity key | Both insert the same key (`insert_insert`), or one side updates a row the other deletes (`update_delete`, `delete_update`) |
+| Column | Column value | Both change the same column to different values (`update_update`) |
+| Cell | Content within value (opt-in) | Both change the same line (text) or key (JSON) |
+
+Tables are not a merge unit of their own. A table missing from one snapshot is
+diffed as if all of its rows were inserted or deleted, and the row rules apply.
 
 Column-level merge is the key advantage over naive row-level comparison. When both sides change the same row but different columns, merql resolves it cleanly:
 
@@ -192,19 +235,29 @@ Result:  { title: "New Title", content: "Body v2", status: "publish" }
 
 ## CLI
 
-```bash
-# Set connection (SQLite)
-export MERQL_DB_DSN="sqlite:/path/to/db.sqlite"
+Requires merql 0.4.1 or later, the first release where `vendor/bin/merql`
+finds the autoloader when installed as a dependency.
 
-# Or MySQL
+```bash
+# Connection: SQLite through a PDO DSN ...
+export MERQL_DB_DSN="sqlite:/data/live.sqlite"
+# ... or MySQL
 export MERQL_DB_NAME=mydb MERQL_DB_USER=root
 
-# Snapshot, diff, merge
+# Snapshot and diff
 vendor/bin/merql snapshot base
+# ... change the database ...
+vendor/bin/merql snapshot current
 vendor/bin/merql diff base current
-vendor/bin/merql merge base ours theirs
+
+# Three-way merge: snapshot ours and theirs from the two diverged databases
+MERQL_DB_DSN="sqlite:/data/sandbox.sqlite" vendor/bin/merql snapshot ours
+MERQL_DB_DSN="sqlite:/data/live.sqlite" vendor/bin/merql snapshot theirs
 vendor/bin/merql merge base ours theirs --dry-run
 ```
+
+`diff` and `merge` read saved snapshots from `.merql/snapshots/` in the working
+directory and need no connection. The CLI has no apply command.
 
 ## Documentation
 
@@ -227,7 +280,7 @@ Topics covered:
 Merql is validated with unit tests, integration tests against real SQLite, and an oracle-style regression corpus.
 
 ```bash
-# PHPUnit unit + integration tests
+# PHPUnit unit + integration tests (the oracle corpus is separate)
 composer test
 
 # Oracle regression corpus
@@ -242,6 +295,11 @@ composer cs
 # Full release-grade verification (analyse + cs + test + test:oracle)
 composer verify
 ```
+
+CI runs coding standards, PHPStan, PHPUnit, a MySQL integration lane and
+dependency audit. It does not run the oracle corpus yet
+([#6](https://github.com/inline0/merql/issues/6)); run `composer test:oracle`
+locally.
 
 Current local verification baseline:
 
@@ -287,8 +345,9 @@ src/
 ## Requirements
 
 - PHP 8.2+
-- `ext-pdo` and `ext-pdo_sqlite` for the PDO adapter and SQLite builder
-- `ext-mysqli` when using the mysqli adapter
+- `ext-mbstring` and `ext-zlib` (required by `pitmaster/pitmaster`)
+- One database extension for the adapter in use: `ext-pdo` with `ext-pdo_sqlite` or `ext-pdo_mysql`, or `ext-mysqli`
+- MySQL or SQLite; other engines need a custom driver
 
 ## License
 

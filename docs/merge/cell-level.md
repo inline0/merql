@@ -21,14 +21,43 @@ $merge = new ThreeWayMerge($config);
 $result = $merge->merge($base, $ours, $theirs);
 ```
 
+## Enabling cell-level merge
+
+Cell-level merge is opt-in. It runs only in a `ThreeWayMerge` constructed with a `CellMergeConfig`. Without one, every column that both sides changed to different values is an `update_update` conflict.
+
+The `Merql` facade does not take a config: `Merql::merge()`, `Merql::patch()`, and `Merql::plan()` construct `new ThreeWayMerge()` without one, and the CLI's `merge` command goes through `Merql::merge()`. They always merge at the column level ([#7](https://github.com/inline0/merql/issues/7)).
+
+To merge snapshots saved by the facade or the CLI with cell-level merge, load them and call `ThreeWayMerge` yourself. The result is an ordinary `MergeResult`, so the facade can still apply it, and `MergePlanBuilder` turns it into a [merge plan](/docs/merge/plans):
+
+```php
+use Merql\CellMerge\CellMergeConfig;
+use Merql\Merge\ThreeWayMerge;
+use Merql\Merql;
+use Merql\Plan\MergePlanBuilder;
+use Merql\Snapshot\SnapshotStore;
+
+$base   = SnapshotStore::load('base');
+$ours   = SnapshotStore::load('ours');
+$theirs = SnapshotStore::load('theirs');
+
+$result = (new ThreeWayMerge(CellMergeConfig::auto()))->merge($base, $ours, $theirs);
+
+$plan = (new MergePlanBuilder())->build('plan-1', $base, $ours, $theirs, $result);
+```
+
+Cell mergers only run for columns that both sides changed. When only one side changed a column, its value is taken as is.
+
 ## CellMergeConfig
 
 `CellMergeConfig` maps columns or column types to cell merger implementations. The `auto()` factory provides sensible defaults:
 
 ```php
 use Merql\CellMerge\CellMergeConfig;
+use Merql\CellMerge\JsonCellMerger;
+use Merql\CellMerge\TextCellMerger;
 
-// Auto: TEXT/LONGTEXT columns use TextCellMerger, JSON columns use JsonCellMerger.
+// Auto: column types containing "text" (TEXT, MEDIUMTEXT, LONGTEXT, ...) use
+// TextCellMerger, column types containing "json" use JsonCellMerger.
 $config = CellMergeConfig::auto();
 
 // Custom: assign mergers to specific columns.

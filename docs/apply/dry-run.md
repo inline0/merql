@@ -22,6 +22,13 @@ foreach ($statements as $sql) {
 }
 ```
 
+The preview contains a statement for each operation in the result, grouped the way
+`Applier` groups them: inserts, then updates, then deletes. For the full
+result of a merge, that is every change of both sides relative to base, which
+is what `Merql::apply()` would execute against a database that still holds
+base. Preview a [selected result](/docs/merge/plans) to see only the statements
+for the operations you plan to apply.
+
 ## Example output
 
 ```sql
@@ -29,6 +36,9 @@ INSERT INTO `posts` (`id`, `title`, `content`, `status`) VALUES ('42', 'New Post
 UPDATE `posts` SET `title` = 'Updated Title', `status` = 'publish' WHERE `id` = '42';
 DELETE FROM `posts` WHERE `id` = '99';
 ```
+
+Updates set every non-identity column the operation carries, not only the
+changed ones, and an update that would set no column is left out.
 
 ## Value formatting
 
@@ -97,5 +107,10 @@ foreach ($statements as $sql) {
 Or from the CLI with the `--dry-run` flag:
 
 ```bash
-./bin/merql merge base ours theirs --dry-run
+vendor/bin/merql merge base ours theirs --dry-run
 ```
+
+The CLI prints the statements without foreign key ordering or a driver, so
+identifiers use the default backtick quoting whatever the database. It passes
+the base snapshot for identity columns. Its merge is column level, like
+`Merql::merge()`.

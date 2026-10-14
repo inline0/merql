@@ -27,8 +27,10 @@ echo $result->conflictCount();  // unresolved conflicts
 Every merge requires exactly three snapshots:
 
 - **Base** -- the database state at the point both branches diverged.
-- **Ours** -- the current database state (may have changed since base).
-- **Theirs** -- the incoming changes to merge in.
+- **Ours** -- one branch after its changes, for example a sandbox copy that was edited.
+- **Theirs** -- the other branch after its changes, for example the live database that kept running.
+
+Ours and theirs must each be captured from the database that holds that branch. The merge rules treat both sides alike; the names decide each operation's `source`, how conflict types are named (`update_delete` means ours updated and theirs deleted), and which side `ConflictPolicy::OursWins` and `TheirsWins` favour.
 
 ```
          Base (snapshot at fork time)
@@ -88,37 +90,57 @@ When both sides update the same row, merql does not immediately declare a confli
 
 ## Using the facade
 
-The `Merql` facade operates on named snapshots that have been persisted to disk:
+The `Merql` facade operates on named snapshots that have been persisted to disk. Call `Merql::init()` with the database that holds each state before snapshotting it:
 
 ```php
+use Merql\Connection;
 use Merql\Merql;
 
-Merql::init($connection);
+$live    = Connection::sqlite('/data/live.sqlite');
+$sandbox = Connection::sqlite('/data/sandbox.sqlite');
 
-$base   = Merql::snapshot('base');
-// ... changes happen ...
-$ours   = Merql::snapshot('ours');
-// ... other changes ...
-$theirs = Merql::snapshot('theirs');
+Merql::init($live);
+Merql::snapshot('base');      // before the sandbox is copied from live
+
+// ... copy live.sqlite to sandbox.sqlite, then both databases change ...
+
+Merql::init($sandbox);
+Merql::snapshot('ours');
+Merql::init($live);
+Merql::snapshot('theirs');
 
 $result = Merql::merge('base', 'ours', 'theirs');
 ```
 
+Do not take all three snapshots from one database in sequence. Theirs would then contain ours' changes as well, so every row ours inserted would appear as inserted on both sides and be reported as an `insert_insert` conflict.
+
+`Merql::merge()`, `Merql::patch()`, and `Merql::plan()` create a `ThreeWayMerge` without a `CellMergeConfig`, so they merge at the column level only. For cell-level merge, load the snapshots and use the class directly, as below.
+
 ## Using the classes directly
 
-For more control, instantiate the components yourself:
+For more control, instantiate the components yourself. `Snapshotter::capture()` does not persist anything, so keep the snapshots in memory or save them with `SnapshotStore::save()`:
 
 ```php
-use Merql\Snapshot\Snapshotter;
+use Merql\CellMerge\CellMergeConfig;
 use Merql\Merge\ThreeWayMerge;
+use Merql\Snapshot\Snapshotter;
+use Merql\Snapshot\SnapshotStore;
 
-$snapshotter = new Snapshotter($connection);
-$base   = $snapshotter->capture('base');
-$ours   = $snapshotter->capture('ours');
-$theirs = $snapshotter->capture('theirs');
+$base   = (new Snapshotter($live))->capture('base');
+// ... copy live to the sandbox, then both databases change ...
+$ours   = (new Snapshotter($sandbox))->capture('ours');
+$theirs = (new Snapshotter($live))->capture('theirs');
 
 $merge = new ThreeWayMerge();
 $result = $merge->merge($base, $ours, $theirs);
+
+// Snapshots saved earlier, merged with cell-level merge for TEXT and JSON columns.
+$merge = new ThreeWayMerge(CellMergeConfig::auto());
+$result = $merge->merge(
+    SnapshotStore::load('base'),
+    SnapshotStore::load('ours'),
+    SnapshotStore::load('theirs'),
+);
 ```
 
 ## The patch shortcut
@@ -168,4 +190,11 @@ $result->hasSchemaMismatches(); // true if schemas differ
 $result->baseSnapshot();       // the base snapshot used for the merge
 ```
 
-Each `MergeOperation` has a type (`insert`, `update`, or `delete`), a table name, a row key, the column values, and a source (`ours`, `theirs`, or `merged`).
+Each `MergeOperation` has a type (`insert`, `update`, or `delete`), a table name, a row key, the column values, and a source (`ours`, `theirs`, or `merged`). `merged` marks a row both sides updated (combined column by column) or both sides deleted.
+
+## Where a merge result applies
+
+A merge result describes how to turn base into the merged state. Its operations carry the changes of both sides: an insert ours made and an insert theirs made both appear as inserts.
+
+- `Merql::apply()` (or `Applier`) executes every operation against the connected database. It applies cleanly to a database that still holds base, such as a fresh copy of the base state. Against a database that already contains one side's changes, an insert of a row that exists fails and the transaction is rolled back.
+- To bring ours into a database that already holds theirs, such as promoting sandbox edits into live, apply only the operations that database is missing: those with source `ours`, and `merged` updates. Use a [merge plan](/docs/merge/plans) to select them and [Guarded Apply](/docs/apply/guarded) to write them with live-row preconditions.
