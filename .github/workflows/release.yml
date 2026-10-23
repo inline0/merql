@@ -31,7 +31,7 @@ jobs:
           rsync -a --exclude='.git' --exclude='.github' --exclude='.claude' \
             --exclude='tests' --exclude='scenarios' \
             --exclude='docs' \
-            --exclude='CLAUDE.md' --exclude='CHANGELOG.md' \
+            --exclude='AGENTS.md' --exclude='CLAUDE.md' --exclude='CHANGELOG.md' \
             --exclude='phpunit.xml*' --exclude='phpcs.xml' --exclude='phpstan.neon*' \
             --exclude='.phpunit*' --exclude='.phpstan*' \
             --exclude='bin/oracle' --exclude='bin/actual' --exclude='bin/compare' \
