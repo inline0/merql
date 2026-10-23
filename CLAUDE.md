@@ -2,6 +2,14 @@
 
 Pure PHP three-way database merge. Takes three database states (base, ours, theirs), computes changesets, and produces a merged result with conflict detection. Git-style merge semantics applied to MySQL tables. No extensions, no external tools.
 
+## Releases
+
+Follow the [shared release rule](https://github.com/inline0/_cp/blob/main/CLAUDE.md#canonical-github-releases).
+Titles are exactly the tag. Bodies contain only the linked `CHANGELOG.md`
+sentence with that tag. Keep complete notes in `CHANGELOG.md` before publishing.
+`.github/workflows/release-format.yml` enforces this format; keep it identical
+to `_cp/scripts/release-format.yml`.
+
 ## Quick Reference
 
 ```bash
