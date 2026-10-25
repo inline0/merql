@@ -72,11 +72,13 @@
         "analyse": "phpstan analyse --memory-limit=512M",
         "cs": "phpcs --warning-severity=0",
         "cs:fix": "phpcbf",
-        "coverage:merge-primitives": "bash bin/verify-merge-primitives-coverage",
-        "verify": [
-            "@analyse",
-            "@cs",
-            "@test"
-        ]
+        "coverage:merge-primitives": "node scripts/verify-merge-primitives-coverage.ts",
+        "verify": "node scripts/verify.ts",
+        "verify:tooling": [
+            "pnpm typecheck",
+            "pnpm test:scripts",
+            "pnpm docs:check"
+        ],
+        "docs:check": "node scripts/check-docs-content.ts"
     }
 }

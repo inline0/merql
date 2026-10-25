@@ -263,7 +263,7 @@ directory and need no connection. The CLI has no apply command.
 The portable Markdown documentation lives under [`docs/`](docs), with `meta.json` files describing the navigation.
 
 ```bash
-node scripts/check-docs-content.mjs
+node scripts/check-docs-content.ts
 ```
 
 Topics covered:
@@ -349,3 +349,12 @@ src/
 ## License
 
 MIT
+
+Development tooling runs as TypeScript directly on Node 26.12+ with pnpm 12.14.
+Install it with `pnpm install --frozen-lockfile`; run `pnpm typecheck`,
+`pnpm test:scripts`, and `pnpm docs:check` to check the tooling.
+`node scripts/verify.ts` runs the complete PHP verification sequence.
+Every tooling command supports `--help`, `--json`, `--dry-run`, and
+`--log-level`. Verification children belong to an Effect scope and are stopped
+on interruption. The Node dependencies are development-only and are excluded
+from Composer archives.

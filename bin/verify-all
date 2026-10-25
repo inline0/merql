@@ -1,27 +1,2 @@
-#!/usr/bin/env bash
-
-set -e
-
-cd "$(dirname "$0")/.."
-
-echo "=== PHPStan ==="
-vendor/bin/phpstan analyse
-echo ""
-
-echo "=== PHPCS ==="
-vendor/bin/phpcs
-echo ""
-
-echo "=== PHPUnit (unit) ==="
-vendor/bin/phpunit --testsuite=unit
-echo ""
-
-echo "=== PHPUnit (integration) ==="
-vendor/bin/phpunit --testsuite=integration
-echo ""
-
-echo "=== Oracle Regression ==="
-php bin/test-regression
-echo ""
-
-echo "=== All checks passed ==="
+#!/bin/sh
+exec node "$(dirname "$0")/../scripts/verify.ts" "$@"
