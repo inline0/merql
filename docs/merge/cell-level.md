@@ -32,12 +32,30 @@ Each method also accepts an optional `cellMergeConfig` argument for a single
 call. `Merql::reset()` clears the configured default. The CLI exposes the same
 automatic TEXT and JSON strategies with `merql merge --cell-merge`.
 
-To merge snapshots saved by the facade or the CLI with cell-level merge, load them and call `ThreeWayMerge` yourself. The result is an ordinary `MergeResult`, so the facade can still apply it, and `MergePlanBuilder` turns it into a [merge plan](/docs/merge/plans):
+Snapshots saved by the facade or the CLI can be merged or planned with cell-level merge through the facade by name:
+
+```php
+use Merql\CellMerge\CellMergeConfig;
+use Merql\Merql;
+
+$config = CellMergeConfig::auto();
+
+$result = Merql::merge('base', 'ours', 'theirs', cellMergeConfig: $config);
+
+$plan = Merql::plan(
+    id: 'plan-1',
+    base: 'base',
+    ours: 'ours',
+    theirs: 'theirs',
+    cellMergeConfig: $config,
+);
+```
+
+When you hold `Snapshot` objects instead of names, call `ThreeWayMerge` yourself. The result is an ordinary `MergeResult`, so the facade can still apply it, and `MergePlanBuilder` turns it into a [merge plan](/docs/merge/plans):
 
 ```php
 use Merql\CellMerge\CellMergeConfig;
 use Merql\Merge\ThreeWayMerge;
-use Merql\Merql;
 use Merql\Plan\MergePlanBuilder;
 use Merql\Snapshot\SnapshotStore;
 

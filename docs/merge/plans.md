@@ -27,10 +27,28 @@ $plan = Merql::plan(
 );
 ```
 
-`Merql::plan()` loads the three named snapshots and merges them at the column
-level, like `Merql::merge()`. To plan a merge that uses cell-level merge for
-TEXT and JSON columns, build the result yourself and pass it to
-`MergePlanBuilder`:
+`Merql::plan()` loads the three named snapshots and merges them like
+`Merql::merge()`. Without a `CellMergeConfig` the merge works at the column
+level. To also merge inside TEXT and JSON columns with
+[cell-level merge](/docs/merge/cell-level), pass `cellMergeConfig`, or set a
+default for every facade merge with `Merql::init()`:
+
+```php
+use Merql\CellMerge\CellMergeConfig;
+use Merql\Merql;
+
+$plan = Merql::plan(
+    id: 'plan-2026-06-06',
+    base: 'base',
+    ours: 'ours',
+    theirs: 'theirs',
+    cellMergeConfig: CellMergeConfig::auto(),
+);
+```
+
+When you already hold the `Snapshot` objects or a `MergeResult`, for example
+one resolved with `ConflictResolver`, build the plan with `MergePlanBuilder`
+instead:
 
 ```php
 use Merql\CellMerge\CellMergeConfig;

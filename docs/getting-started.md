@@ -133,7 +133,7 @@ echo "Clean:      " . ($result->isClean() ? 'yes' : 'no') . "\n";
 
 Do not take all three snapshots from one database in sequence. Theirs would then already contain ours' changes, and every row ours inserted would show up as an `insert_insert` conflict.
 
-`Merql::merge()` merges at the column level. To also merge inside TEXT and JSON values, use `ThreeWayMerge` with a `CellMergeConfig`; see [Cell-Level Merge](/docs/merge/cell-level).
+`Merql::merge()` merges at the column level by default. To also merge inside TEXT and JSON values, pass `cellMergeConfig: CellMergeConfig::auto()` to `Merql::merge()` or `Merql::init()`; see [Cell-Level Merge](/docs/merge/cell-level).
 
 ### Handling conflicts
 
