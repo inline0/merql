@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.5.2] - 2026-11-07
+
+### Fixed
+
+- The merge plan, cell-level merge and getting started documentation no
+  longer say that `Merql::plan()` and `Merql::merge()` cannot use cell-level
+  merge. They show the `cellMergeConfig` argument both methods have accepted
+  since 0.5.0, and keep `ThreeWayMerge` with `MergePlanBuilder` for callers
+  that hold `Snapshot` objects or a resolved `MergeResult`.
+
 ## [0.5.1] - 2026-11-07
 
 ### Changed
