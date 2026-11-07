@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.5.1] - 2026-11-07
+
+### Changed
+
+- The column-level merge documentation explains which rows reach column
+  merge, the fallback value a conflicted column holds with and without cell
+  mergers, how conflict resolution and merge plans treat partially conflicted
+  rows, and when to read the cell-level, conflict handling and merge plan
+  pages. The merge plan page now notes the cell merger fallback.
+
 ## [0.5.0] - 2026-10-14
 
 ### Added
