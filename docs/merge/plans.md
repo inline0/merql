@@ -164,7 +164,9 @@ deleted), are already present in that target.
 
 A plan built from a merge with conflicts still lists an operation for each
 conflicted row that both sides updated. Its result values hold ours' value in
-the conflicting column. Both the operation and its change group report
+the conflicting column, or the cell merger's fallback value when the merge used
+cell-level merge (see
+[Column-Level Merge](/docs/merge/column-level#partial-conflicts)). Both the operation and its change group report
 `conflictState = 'conflicted'`, and `SelectedMergeResultFactory` preserves the
 conflicts if they are selected. Keep them out of the selection as above, or
 resolve conflicts with

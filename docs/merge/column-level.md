@@ -65,6 +65,18 @@ For each column, the same rules apply:
 | A | B | B | Accept (both agree) |
 | A | B | C | **Conflict** (different values) |
 
+## Which rows reach column merge
+
+Column merge runs only for a row that both sides updated. Every other case is decided at the row level before any column is compared:
+
+- A row only one side updated becomes an update with that side's full row and source `ours` or `theirs`.
+- A row one side updated and the other deleted is an `update_delete` or `delete_update` conflict. There are no columns to compare against a deleted row, so the conflict carries the updated side's full row instead of a column value.
+- A row both sides inserted with the same primary key is an `insert_insert` conflict, because there is no base row to compare against.
+
+These structural conflicts have a `null` column and are described with their resolution rules in [Conflict Handling](/docs/merge/conflicts).
+
+A row both sides updated always produces one update operation with source `merged`, whether or not any of its columns conflict. Its values hold every column of the row: the base value where neither side changed it, the changed side's value where one side did, and the merged or fallback value where both did. The columns of the three versions are compared as a union, and a column missing from one version counts as `NULL` for that version.
+
 ## When conflicts still happen
 
 A column-level conflict occurs when both sides changed the same column to different values:
@@ -90,9 +102,11 @@ $result = ColumnMerge::merge(
 //   oursValue: "Welcome", theirsValue: "Greetings", baseValue: "Hello"
 ```
 
+Each conflicted column is reported as its own `update_update` conflict with the table, row key, column name and the three values. Two conflicting columns in one row produce two conflicts. [Conflict Handling](/docs/merge/conflicts) lists the accessors and shows how to inspect them.
+
 ## Partial conflicts
 
-A single row can have both clean merges and conflicts. If one column merges cleanly but another conflicts, the `MergeOperation` for the row contains the merged values for clean columns and the ours value (by default) for conflicted columns. The conflict is still reported separately.
+A single row can have both clean merges and conflicts. If one column merges cleanly but another conflicts, the `MergeOperation` for the row contains the merged values for clean columns and a fallback value for conflicted columns. The conflict is still reported separately.
 
 ```
 Base:    { title: "Hello", content: "Body",    status: "draft" }
@@ -106,6 +120,16 @@ Here `title` conflicts (both changed it differently), `content` merges clean (on
 // values: { title: "Welcome", content: "Body v2", status: "publish" }
 // One conflict on the "title" column.
 ```
+
+Without a `CellMergeConfig`, the fallback in a conflicted column is ours' value, as above. With one, it is the value the cell merger returned: `OpaqueCellMerger` returns ours' value, `JsonCellMerger` returns the merged object with ours' value on each conflicting key (or ours' whole value when one version is not a JSON object or array), and `TextCellMerger` returns the merged text with git-style conflict markers around the lines both sides changed. The `Conflict` itself always carries the plain ours, theirs and base values.
+
+### Resolving the remaining columns
+
+The fallback value is a placeholder, not a decision. A result with conflicts is not clean, and the `Applier` refuses to apply it until they are resolved. `ConflictResolver::resolve()` with `ConflictPolicy::OursWins` or `ConflictPolicy::TheirsWins` patches only the conflicted columns of the `merged` operation with the winning side's value from each `Conflict`. The columns that merged cleanly keep their merged values, so in the example above `TheirsWins` gives `{ title: "Greetings", content: "Body v2", status: "publish" }`. For per-column decisions, read each conflict yourself and build the result. Both paths are covered in [Conflict Handling](/docs/merge/conflicts#automatic-resolution-with-conflictpolicy).
+
+### Partial conflicts in a merge plan
+
+A [merge plan](/docs/merge/plans) built from the result lists the row's `merged` operation once. `resultValues` holds the values above, including the fallback, and `changedColumns` lists the columns whose result value differs from the base row. The operation and its change group report `conflictState = 'conflicted'`, and a selection that includes them keeps the conflict, so it cannot be applied as clean. Leave conflicted rows out of the selection, or resolve the result first and build the plan from the resolved result, as [Merge Plans](/docs/merge/plans#selecting-what-a-target-is-missing) shows.
 
 ## Value comparison
 
@@ -121,3 +145,24 @@ This matches MerQL connection adapter fetch semantics: all database values come 
 ## Cell-level merge
 
 When column-level merge still results in a conflict (both sides changed the same column to different values), merql can go one level deeper with [cell-level merge](/docs/merge/cell-level). This applies to TEXT columns (line-by-line diff) and JSON columns (key-by-key diff), resolving cases where both sides edited different parts of the same column value.
+
+Cell-level merge is a step inside column merge, not a separate pass. `ColumnMerge` asks the configured cell merger only for a column that both sides changed to different values. A clean cell result becomes the column's value with no conflict. A cell result that still conflicts becomes the fallback value described above and is reported as an ordinary `update_update` conflict for the column, so resolution and plans treat it like any other column conflict.
+
+It is off by default. Pass a `CellMergeConfig` to `ThreeWayMerge`, to `Merql::init()` for every later facade merge, or to a single `Merql::merge()`, `Merql::patch()` or `Merql::plan()` call, or use `--cell-merge` with `merql merge`:
+
+```php
+use Merql\CellMerge\CellMergeConfig;
+use Merql\Merql;
+
+$result = Merql::merge('base', 'ours', 'theirs', cellMergeConfig: CellMergeConfig::auto());
+```
+
+With `CellMergeConfig::auto()`, a TEXT `content` column that ours edited on its first line and theirs on its last merges into one value with both edits, where plain column merge would report a conflict.
+
+## Which page to read next
+
+Column merge decides each column of a row both sides updated. What happens around it is covered on three pages:
+
+- [Cell-Level Merge](/docs/merge/cell-level) applies when your conflicts are in TEXT or JSON columns that both sides edit in different places, such as post content or settings objects. It reduces the number of `update_update` conflicts but never removes them all: two edits to the same line or the same JSON key still conflict.
+- [Conflict Handling](/docs/merge/conflicts) applies once a result has conflicts, from column merge or from the row-level cases above. It covers the four conflict types, the `Conflict` accessors and how `ConflictResolver` turns a conflicted result into one the `Applier` accepts.
+- [Merge Plans](/docs/merge/plans) applies when the merged operations are reviewed, staged or applied in part instead of all at once. A plan shows each `merged` operation next to its base, ours and theirs rows, which is where a column merge decision can be checked before it is written.
