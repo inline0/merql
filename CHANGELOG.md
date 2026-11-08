@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.3] - 2026-11-08
+
+### Fixed
+
+- The `merql.zip` release asset ships only runtime files: the source, the
+  `bin/merql` binary, the production `vendor/`, the Composer manifest and
+  lock, the README and the licence. The TypeScript tooling (`package.json`,
+  `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `tsconfig.scripts.json`, `.nvmrc`,
+  `.node-version`, `scripts/`) and the remaining development scripts in
+  `bin/` no longer appear in it. The Composer archive was already clean.
+- The sample compliance report in the agent guide shows all 32 scenarios.
+
 ## [0.5.2] - 2026-11-07
 
 ### Fixed
