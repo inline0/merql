@@ -507,45 +507,51 @@ For conflict scenarios, the oracle defines exactly which conflicts should be det
 merql Compliance Report
 =======================
 
-Clean Merge Scenarios:      8/8 passed
-  insert-only-theirs       PASS  (3 inserts applied)
-  update-only-theirs       PASS  (2 updates applied)
-  delete-only-theirs       PASS  (1 delete applied)
-  column-level-clean       PASS  (3 columns merged independently)
-  mixed-no-overlap         PASS  (5 operations across 3 tables)
-  both-same-change         PASS  (identical changes, no conflict)
-  multi-table              PASS  (12 operations across 5 tables)
-  insert-only-ours         PASS  (2 inserts preserved)
+Clean Scenarios:             8/8 passed
+  both-same-change          PASS
+  column-level-clean        PASS
+  delete-only-theirs        PASS
+  insert-only-ours          PASS
+  insert-only-theirs        PASS
+  mixed-no-overlap          PASS
+  multi-table               PASS
+  update-only-theirs        PASS
 
-Conflict Scenarios:         6/6 passed
-  both-update-same-col     PASS  (1 conflict detected correctly)
-  update-vs-delete         PASS  (1 conflict detected correctly)
-  delete-vs-update         PASS  (1 conflict detected correctly)
-  both-insert-same-pk      PASS  (1 conflict detected correctly)
-  multiple-conflicts       PASS  (3 conflicts detected correctly)
-  partial-conflict         PASS  (2 clean + 1 conflict in same row)
+Conflict Scenarios:          6/6 passed
+  both-insert-same-pk       PASS
+  both-update-same-column   PASS
+  delete-vs-update          PASS
+  multiple-conflicts        PASS
+  partial-conflict          PASS
+  update-vs-delete          PASS
 
-Identity Scenarios:         4/4 passed
-  auto-increment           PASS  (natural key fallback used)
-  natural-key              PASS  (unique columns matched)
-  composite-key            PASS  (multi-column PK matched)
-  no-key                   PASS  (content hash matched)
+Edge Scenarios:              4/4 passed
+  empty-changeset           PASS
+  encoding                  PASS
+  large-text                PASS
+  schema-mismatch           PASS
 
-Type Scenarios:             6/6 passed
-  text-columns             PASS  (VARCHAR, TEXT, LONGTEXT)
-  numeric-columns          PASS  (INT, DECIMAL, FLOAT)
-  date-columns             PASS  (DATE, DATETIME, TIMESTAMP)
-  json-columns             PASS  (opaque string comparison)
-  blob-columns             PASS  (binary data)
-  null-handling            PASS  (NULL transitions)
+Identity Scenarios:          4/4 passed
+  auto-increment            PASS
+  composite-key             PASS
+  natural-key               PASS
+  no-key                    PASS
 
-Edge Cases:                 4/4 passed
-  empty-changeset          PASS  (no-op merge)
-  schema-mismatch          PASS  (detected and reported)
-  encoding                 PASS  (UTF-8, emoji preserved)
-  large-text               PASS  (LONGTEXT values)
+Scale Scenarios:             4/4 passed
+  100k-rows                 PASS
+  10k-rows                  PASS
+  1k-rows                   PASS
+  wide-table                PASS
 
-Total: 28/28 scenarios passed
+Types Scenarios:             6/6 passed
+  blob-columns              PASS
+  date-columns              PASS
+  json-columns              PASS
+  null-handling             PASS
+  numeric-columns           PASS
+  text-columns              PASS
+
+Total: 32/32 scenarios passed
 ```
 
 ## Implementation Order

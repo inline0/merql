@@ -28,15 +28,34 @@ jobs:
       - name: Create release archive
         run: |
           mkdir -p dist
-          rsync -a --exclude='.git' --exclude='.github' --exclude='.claude' \
-            --exclude='tests' --exclude='scenarios' \
+          rsync -a \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='.claude' \
+            --exclude='tests' \
+            --exclude='scenarios' \
             --exclude='docs' \
-            --exclude='AGENTS.md' --exclude='CLAUDE.md' --exclude='CHANGELOG.md' \
-            --exclude='phpunit.xml*' --exclude='phpcs.xml' --exclude='phpstan.neon*' \
-            --exclude='.phpunit*' --exclude='.phpstan*' \
-            --exclude='bin/oracle' --exclude='bin/actual' --exclude='bin/compare' \
-            --exclude='bin/test-scenario' --exclude='bin/test-regression' \
-            --exclude='bin/verify-compliance' --exclude='bin/verify-all' \
+            --exclude='node_modules' \
+            --exclude='scripts' \
+            --exclude='package.json' \
+            --exclude='package-lock.json' \
+            --exclude='pnpm-*.yaml' \
+            --exclude='tsconfig*.json' \
+            --exclude='.nvmrc' \
+            --exclude='.node-version' \
+            --exclude='.gitattributes' \
+            --exclude='.gitignore' \
+            --exclude='AGENTS.md' \
+            --exclude='CLAUDE.md' \
+            --exclude='CHANGELOG.md' \
+            --exclude='phpunit.xml*' \
+            --exclude='phpcs.xml*' \
+            --exclude='phpstan.neon*' \
+            --exclude='.phpunit*' \
+            --exclude='.phpstan*' \
+            --include='/bin/merql' \
+            --exclude='/bin/*' \
+            --exclude='dist' \
             . dist/merql/
           cd dist && zip -r ../merql.zip merql/
 
